@@ -11,6 +11,8 @@ import { StarSystem, StationBody } from './world/system';
 import { Scanner, ScanTarget } from './world/scan';
 import { HyperspaceTunnel } from './render/hyperspace';
 import { Market } from './economy/market';
+import { MusicPlayer } from './audio/music';
+import { sfx } from './audio/sfx';
 import { Ship } from './ship/ship';
 import { SHIPS, ShipClass, ModuleType, MODULES, moduleCost } from './ship/shipdefs';
 import { HUD } from './ui/hud';
@@ -43,12 +45,14 @@ function startFlight() {
   game.phase = 'flying';
   screens.showTitle(false);
   hud.show(true);
+  sfx.ui();
   hud.flash('BIENVENUE A BORD');
 }
 function resume() {
   if (game.phase !== 'paused') return;
   game.phase = 'flying';
   screens.showPause(false);
+  sfx.ui();
 }
 const screens = new Screens(startFlight, resume, input.isTouch ? 'PAYSAGE RECOMMANDÉ' : '');
 
@@ -62,6 +66,7 @@ function openMap() {
   if (game.phase !== 'flying') return;
   game.phase = 'map';
   hud.setScan(null);
+  sfx.ui();
   mapUI = new GalaxyMapUI(
     galaxy,
     game.player.systemId,
@@ -77,6 +82,7 @@ function closeMap() {
   mapUI?.dispose();
   mapUI = null;
   game.phase = 'flying';
+  sfx.ui();
 }
 function startJump(dest: SystemDef) {
   if (game.phase !== 'map') return;
@@ -99,6 +105,7 @@ function startJump(dest: SystemDef) {
   jumpDest = dest;
   jumpT = 0;
   game.phase = 'hyperspace';
+  sfx.jump();
   hud.flash('SAUT HYPERSPATIAL…');
   save();
 }
@@ -307,11 +314,55 @@ let titleT = 0;
 const scanner = new Scanner(900, 3, (rec) => {
   if (system) rec.systemId = system.def.id;
   game.player.scans[rec.planetId] = rec;
+  sfx.scanDone();
   hud.flash('SCAN « ' + rec.name + ' » — ' + rec.price + ' CR (VENDABLE EN STATION)');
   save();
 });
 
 applyLoadout();
+
+// --- audio: unlock on first interaction, mute persisted ---
+const music = new MusicPlayer([
+  '/audio/01-observing-the-star.mp3',
+  '/audio/02-starfield-romance.mp3',
+  '/audio/03-scifi-ambient.mp3',
+  '/audio/04-drifting-beyond-the-stars.mp3',
+  '/audio/05-beyond-the-stars.mp3',
+]);
+const AUDIO_KEY = 'stellar-drift.audio';
+const audioMuted = () => localStorage.getItem(AUDIO_KEY) === '1';
+
+function setAudio(m: boolean) {
+  sfx.setMuted(m);
+  music.setMuted(m);
+  localStorage.setItem(AUDIO_KEY, m ? '1' : '0');
+  const b = document.getElementById('hud-mute');
+  if (b) b.textContent = m ? 'SON: OFF' : 'SON: ON';
+}
+
+setAudio(audioMuted());
+
+const unlock = () => {
+  window.removeEventListener('pointerdown', unlock);
+  window.removeEventListener('keydown', unlock);
+  sfx.ui();
+  music.start();
+};
+window.addEventListener('pointerdown', unlock);
+window.addEventListener('keydown', unlock);
+
+const muteBtn = document.getElementById('hud-mute');
+if (muteBtn) {
+  muteBtn.addEventListener('click', () => setAudio(!audioMuted()));
+  muteBtn.addEventListener(
+    'touchstart',
+    (e) => {
+      e.preventDefault();
+      setAudio(!audioMuted());
+    },
+    { passive: false },
+  );
+}
 
 // nearest station within docking range of its pad
 function findStation(): { st: StationBody; pad: THREE.Vector3; d: number } | null {
@@ -364,6 +415,8 @@ const loop = new GameLoop(
         ship.update(dt, fi);
         ship.getCamera(camera);
         ship.forward(tmpF);
+
+        if (fi.scan) sfx.scanTick(scanner.progress);
 
         // scan (held): must stay on target, in range, not already scanned
         if (system) {
@@ -420,10 +473,12 @@ const loop = new GameLoop(
             dockTarget = near.st;
             game.phase = 'docking';
             hud.setScan(null);
+            sfx.dock();
           } else {
             ship.hull = Math.max(0, ship.hull - 15);
             ship.vel.addScaledVector(tmpB, 18);
             dockCooldown = 2;
+            sfx.crash();
             hud.flash(
               speed >= 10
                 ? 'AMARRAGE ÉCHOUÉ — TROP RAPIDE (COQUE -15)'
@@ -508,6 +563,7 @@ const loop = new GameLoop(
 
     if (system) system.update(dt);
     sky.position.copy(ship.pos);
+    sfx.engine(game.phase === 'flying' ? ship.throttle : 0, game.phase === 'flying');
     input.endFrame();
     touch.endFrame();
   },

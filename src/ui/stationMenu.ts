@@ -1,4 +1,5 @@
 import { GOODS, Market } from '../economy/market';
+import { sfx } from '../audio/sfx';
 import type { Game } from '../core/state';
 import type { StationDef } from '../world/station';
 import type { ShipClass, ModuleType } from '../ship/shipdefs';
@@ -75,11 +76,15 @@ export class StationMenu {
     document.getElementById('ui-root')!.appendChild(this.el);
     this.tabbar = this.el.querySelector('#sm-tabs') as HTMLElement;
     this.body = this.el.querySelector('#sm-body') as HTMLElement;
-    this.el.querySelector('#sm-exit')!.addEventListener('click', () => this.ctx.onExit());
+    this.el.querySelector('#sm-exit')!.addEventListener('click', () => {
+      sfx.ui();
+      this.ctx.onExit();
+    });
     this.el.querySelector('#sm-exit')!.addEventListener(
       'touchstart',
       (e) => {
         e.preventDefault();
+        sfx.ui();
         this.ctx.onExit();
       },
       { passive: false },
@@ -89,6 +94,7 @@ export class StationMenu {
       b.className = 'sm-tab';
       b.textContent = t;
       b.addEventListener('click', () => {
+        sfx.ui();
         this.tab = t;
         this.render();
       });
@@ -96,6 +102,7 @@ export class StationMenu {
         'touchstart',
         (e) => {
           e.preventDefault();
+          sfx.ui();
           this.tab = t;
           this.render();
         },

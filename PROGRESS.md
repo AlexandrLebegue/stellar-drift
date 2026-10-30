@@ -23,8 +23,9 @@
   - `Ship` : `setShip(cls)` (reconstruit le modèle), `setPaint`, `recompute(mods)` (stats effectives = classe + modules), carburant/coque en unités absolues (0..capacité) ; scanner reparamétré selon vaisseau/modules.
   - Menu station : onglets CHANTIER (acheter/reprendre un vaisseau, stats affichées) et ÉQUIPEMENT (6 modules avec pips de niveau + bouton d'achat, pastilles de peinture). Sauvegarde des vaisseaux possédés / vaisseau courant / modules / peinture / carburant / coque.
 
+- **Étape 8 — Audio** : 5 pistes d'ambiance OpenGameArt (2 CC0, 3 CC-BY 3.0, crédits dans CREDITS.md) ré-encodées en MP3 96 kbps mono dans `public/audio/` (~11 Mo), playlist aléatoire avec fondu 2 s via deux HTMLAudioElement mixés en WebAudio, démarrage après première interaction, bouton SON ON/OFF persisté. Bruitages 100 % synthétisés WebAudio (`src/audio/sfx.ts`) : ronronnement moteur lié à la poussée, blips de scan + chime de fin, whoosh de saut, thump/crash d'amarrage, clics UI.
+
 ## Reste
-- Étape 8 — Audio (musiques + bruitages WebAudio).
 - Étape 9 — Sauvegarde complète, polish, perf mobile.
 
 ## Notes / blocages

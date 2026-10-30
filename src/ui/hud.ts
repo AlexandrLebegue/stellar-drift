@@ -34,6 +34,7 @@ export class HUD {
       '<div id="hud-reticle"><i></i><i></i><i></i><i></i></div>',
       '<div id="hud-scanbar"><i></i></div>',
       '<div id="hud-msg"></div>',
+      '<button id="hud-mute" class="tbtninline">SON: ON</button>',
     ].join('\n');
     for (const id of [
       'hud-sys', 'hud-cred', 'hud-tgt', 'hud-dist',

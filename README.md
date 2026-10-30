@@ -41,6 +41,14 @@ npm run preview  # servir le build
 - Thrusters (droite) : poussée + / −.
 - Boutons : HYPERSPACE, SCAN (maintenu), DOCK (contextuel).
 
+## Audio
+
+Musique d'ambiance (5 pistes libres de droits, lecture en playlist aléatoire
+avec fondu, bouton SON: ON/OFF en bas à droite, réglage mémorisé) + bruitages
+procéduraux WebAudio (moteur, scan, saut, amarrage, interface). La musique
+démare après la première interaction (politique autoplay des navigateurs).
+Crédits et licences : `CREDITS.md`.
+
 ## Structure du code
 - `src/core` — boucle, input, état, PRNG, sauvegarde
 - `src/render` — pipeline PS1 (basse rés, vertex snap, dither), textures procédurales
