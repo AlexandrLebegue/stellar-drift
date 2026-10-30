@@ -26,6 +26,12 @@ export class Scanner {
     private onDone: (rec: ScanRecord, target: ScanTarget) => void,
   ) {}
 
+  // re-tune after ship/module changes
+  setParams(range: number, time: number) {
+    this.range = range;
+    this.time = time;
+  }
+
   // targets: candidate planets with world positions; already scanned are skipped
   update(dt: number, holding: boolean, shipPos: THREE.Vector3, shipFwd: THREE.Vector3, targets: ScanTarget[]) {
     this.target = null;

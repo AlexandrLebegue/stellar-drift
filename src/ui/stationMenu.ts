@@ -1,6 +1,26 @@
 import { GOODS, Market } from '../economy/market';
 import type { Game } from '../core/state';
 import type { StationDef } from '../world/station';
+import type { ShipClass, ModuleType } from '../ship/shipdefs';
+import { PAINTS } from '../ship/shipdefs';
+
+export interface ShipOffer {
+  cls: ShipClass;
+  name: string;
+  desc: string;
+  price: number;
+  stats: string;
+  owned: boolean;
+  current: boolean;
+}
+
+export interface ModuleOffer {
+  type: ModuleType;
+  name: string;
+  level: number;
+  max: number;
+  cost: number;
+}
 
 export interface MenuContext {
   game: Game;
@@ -9,8 +29,14 @@ export interface MenuContext {
   hold: number;
   fuel: number;
   hull: number;
+  ships: ShipOffer[];
+  modules: ModuleOffer[];
+  paint: string;
   onFuel: (pct: number, cost: number) => void;
   onRepair: (pct: number, cost: number) => void;
+  onBuyShip: (cls: ShipClass) => void;
+  onBuyModule: (t: ModuleType) => void;
+  onPaint: (c: string) => void;
   onExit: () => void;
 }
 
@@ -119,7 +145,26 @@ export class StationMenu {
     if (this.tab === 'MARCHÉ') this.renderMarket();
     else if (this.tab === 'CARTOGRAPHIE') this.renderCarto();
     else if (this.tab === 'CARBURANT') this.renderFuel();
-    else this.renderSoon();
+    else if (this.tab === 'CHANTIER') this.renderShipyard();
+    else this.renderEquipment();
+  }
+
+  private btn(label: string, cb: () => void, disabled = false): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.className = 'tbtninline' + (disabled ? ' disabled' : '');
+    b.textContent = label;
+    if (!disabled) {
+      b.addEventListener('click', cb);
+      b.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          cb();
+        },
+        { passive: false },
+      );
+    }
+    return b;
   }
 
   private row(
@@ -256,11 +301,74 @@ export class StationMenu {
     });
   }
 
-  private renderSoon() {
+  private renderShipyard() {
+    const { game } = this.ctx;
     this.body.innerHTML = '';
-    const p = document.createElement('p');
-    p.className = 'sm-empty';
-    p.textContent = this.tab + ' — ÉTAPE 7 : VAISSEAUX ET MODULES';
-    this.body.appendChild(p);
+    for (const s of this.ctx.ships) {
+      const r = document.createElement('div');
+      r.className = 'sm-ship';
+      r.innerHTML =
+        '<div class="sm-shipname">' + s.name + ' — ' + s.price + ' CR</div>' +
+        '<div class="sm-shipdesc">' + s.desc + '</div>' +
+        '<div class="sm-shipdesc">' + s.stats + '</div>';
+      if (s.current) {
+        const tag = document.createElement('div');
+        tag.className = 'sm-shipdesc';
+        tag.textContent = '▸ VOTRE VAISSEAU ACTUEL';
+        r.appendChild(tag);
+      } else {
+        r.appendChild(
+          this.btn(
+            s.owned ? 'REPRENDRE CE VAISSEAU' : 'ACHETER',
+            () => this.ctx.onBuyShip(s.cls),
+            !s.owned && game.player.credits < s.price,
+          ),
+        );
+      }
+      this.body.appendChild(r);
+    }
+  }
+
+  private renderEquipment() {
+    const { game } = this.ctx;
+    this.body.innerHTML = '';
+    for (const m of this.ctx.modules) {
+      const r = document.createElement('div');
+      r.className = 'sm-row';
+      const pips = '●'.repeat(m.level) + '○'.repeat(m.max - m.level);
+      const maxed = m.level >= m.max;
+      r.innerHTML =
+        '<span class="sm-name">' + m.name + '</span>' +
+        '<span class="sm-extra">' + pips + '</span>';
+      r.appendChild(
+        this.btn(
+          maxed ? 'NIVEAU MAX' : 'NIV. ' + (m.level + 1) + ' — ' + m.cost + ' CR',
+          () => this.ctx.onBuyModule(m.type),
+          maxed || game.player.credits < m.cost,
+        ),
+      );
+      this.body.appendChild(r);
+    }
+    // paint swatches
+    const row = document.createElement('div');
+    row.className = 'sm-row';
+    row.innerHTML = '<span class="sm-name">PEINTURE</span><span class="sm-extra"></span><span></span>';
+    const sw = row.querySelector('.sm-extra') as HTMLElement;
+    for (const c of PAINTS) {
+      const b = document.createElement('button');
+      b.className = 'swatch' + (this.ctx.paint === c ? ' active' : '');
+      b.style.background = c;
+      b.addEventListener('click', () => this.ctx.onPaint(c));
+      b.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          this.ctx.onPaint(c);
+        },
+        { passive: false },
+      );
+      sw.appendChild(b);
+    }
+    this.body.appendChild(row);
   }
 }

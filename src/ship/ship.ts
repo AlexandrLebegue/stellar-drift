@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { FlightInput } from '../core/input';
-import { applyPS1 } from '../render/ps1';
-import { makeGlow } from '../render/textures';
+import { buildShipModel } from './models';
+import { SHIPS, ShipClass, ShipDef, ModuleType } from './shipdefs';
 
-// Low-poly arcade ship. Forward = -Z, up = +Y.
+// Low-poly arcade ship. Forward = -Z, up = +Y. Stats = ship class +
+// owned modules; paint recolors the hull in place.
 export class Ship {
   group = new THREE.Group();
   pos = new THREE.Vector3(0, 0, 400);
@@ -14,61 +15,82 @@ export class Ship {
   fuel = 100;
   camMode: 'chase' | 'cockpit' = 'chase';
 
+  cls: ShipClass = 'prototype';
+  def: ShipDef = SHIPS.prototype;
+  paint = '#b8bec8';
+
+  // effective stats (recomputed by recompute())
   maxSpeed = 150;
   maxThrust = 60;
+  turnMult = 1;
   hold = 16;
   jumpRange = 10;
-  drag = 0.45;
-  turnPitch = 1.5;
-  turnYaw = 1.1;
-  turnRoll = 2.2;
+  scanRange = 900;
+  scanTime = 3;
+  fuelCap = 100;
+  hullMax = 100;
 
+  private snapRes: THREE.Vector2;
+  private model: THREE.Group | null = null;
   private camPos = new THREE.Vector3(0, 10, 430);
   private camLook = new THREE.Vector3();
   private camDesire = new THREE.Vector3();
   private tmpLook = new THREE.Vector3();
-  private engineGlow: THREE.Sprite;
   private fwd = new THREE.Vector3();
   private up = new THREE.Vector3();
   private tmpE = new THREE.Euler();
   private tmpQ = new THREE.Quaternion();
 
   constructor(snapRes: THREE.Vector2) {
-    const hull = new THREE.MeshLambertMaterial({ color: 0xb8bec8 });
-    const dark = new THREE.MeshLambertMaterial({ color: 0x6f7886 });
-    const glass = new THREE.MeshLambertMaterial({ color: 0x1c2b46 });
-    applyPS1(hull, snapRes);
-    applyPS1(dark, snapRes);
-    applyPS1(glass, snapRes);
+    this.snapRes = snapRes;
+    this.setShip('prototype');
+  }
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 3.4), hull);
-    this.group.add(body);
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.5, 4), hull);
-    nose.rotation.x = -Math.PI / 2;
-    nose.position.z = -2.4;
-    this.group.add(nose);
-    const wings = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 1.2), dark);
-    wings.position.z = 0.9;
-    this.group.add(wings);
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.1, 0.9), dark);
-    fin.position.set(0, 0.75, 1.4);
-    this.group.add(fin);
-    const cockpit = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 0.9), glass);
-    cockpit.position.set(0, 0.55, -0.5);
-    this.group.add(cockpit);
+  setShip(cls: ShipClass) {
+    this.cls = cls;
+    this.def = SHIPS[cls];
+    if (this.model) {
+      this.model.traverse((o) => {
+        const n = o as unknown as {
+          geometry?: THREE.BufferGeometry;
+          material?: THREE.Material | THREE.Material[];
+        };
+        n.geometry?.dispose();
+        const mats = Array.isArray(n.material) ? n.material : n.material ? [n.material] : [];
+        for (const x of mats) {
+          const tex = (x as THREE.SpriteMaterial).map;
+          if (tex) tex.dispose();
+          x.dispose();
+        }
+      });
+      this.group.remove(this.model);
+    }
+    this.model = buildShipModel(cls, this.paint, this.snapRes);
+    this.group.add(this.model);
+    this.recompute({});
+  }
 
-    this.engineGlow = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: makeGlow(64, [255, 140, 60]),
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        transparent: true,
-        fog: false,
-      }),
-    );
-    this.engineGlow.position.z = 2.1;
-    this.engineGlow.scale.set(1.6, 1.6, 1);
-    this.group.add(this.engineGlow);
+  setPaint(paint: string) {
+    this.paint = paint;
+    if (this.model) {
+      (this.model.userData.hullMat as THREE.MeshLambertMaterial).color.set(paint);
+    }
+  }
+
+  recompute(mods: Partial<Record<ModuleType, number>>) {
+    const d = this.def;
+    const l = (t: ModuleType) => mods?.[t] ?? 0;
+    this.maxSpeed = d.maxSpeed * (1 + 0.2 * l('moteur'));
+    this.maxThrust = d.maxThrust * (1 + 0.25 * l('moteur'));
+    this.turnMult = d.turn * (1 + 0.1 * l('moteur'));
+    this.hold = d.hold + 8 * l('soute');
+    this.jumpRange = d.jumpRange + 2 * l('fsd');
+    this.scanRange = d.scanRange + 300 * l('scanner');
+    this.scanTime = Math.max(1, d.scanTime - 0.4 * l('scanner'));
+    this.fuelCap = d.fuelCap + 50 * l('reservoir');
+    this.hullMax = d.hullMax + 50 * l('coque');
+    this.fuel = Math.min(this.fuel, this.fuelCap);
+    this.hull = Math.min(this.hull, this.hullMax);
   }
 
   toggleCam() {
@@ -83,7 +105,7 @@ export class Ship {
     this.quat.identity();
     this.camPos.copy(pos).add(new THREE.Vector3(0, 8, 30));
     this.camLook.copy(pos);
-    this.group.visible = true;
+    this.group.visible = this.camMode !== 'cockpit';
     this.camMode = 'chase';
   }
 
@@ -96,9 +118,9 @@ export class Ship {
   update(dt: number, fi: FlightInput) {
     // local-space attitude change (YXZ: yaw, pitch, roll)
     this.tmpE.set(
-      fi.pitch * this.turnPitch * dt,
-      fi.yaw * this.turnYaw * dt,
-      -fi.roll * this.turnRoll * dt,
+      fi.pitch * 1.5 * this.turnMult * dt,
+      fi.yaw * 1.1 * this.turnMult * dt,
+      -fi.roll * 2.2 * this.turnMult * dt,
       'YXZ',
     );
     this.tmpQ.setFromEuler(this.tmpE);
@@ -109,21 +131,23 @@ export class Ship {
 
     // thrust along forward, light inertial drag
     this.vel.addScaledVector(this.fwd, this.throttle * this.maxThrust * dt);
-    this.vel.multiplyScalar(Math.exp(-this.drag * dt));
+    this.vel.multiplyScalar(Math.exp(-0.45 * dt));
     const sp = this.vel.length();
     if (sp > this.maxSpeed) this.vel.multiplyScalar(this.maxSpeed / sp);
     this.pos.addScaledVector(this.vel, dt);
 
     this.group.position.copy(this.pos);
     this.group.quaternion.copy(this.quat);
-    const glow = 0.4 + this.throttle * 1.6;
-    this.engineGlow.scale.set(glow, glow, 1);
+    if (this.model) {
+      const glow = this.model.userData.glow as THREE.Sprite;
+      const s = 0.4 + this.throttle * 1.6;
+      glow.scale.set(s, s, 1);
+    }
 
     this.updateCamera(dt);
   }
 
-  // camera: chase (smoothed) or cockpit (snapped) — called by update()
-  // and standalone during docking
+  // camera: chase (smoothed) or cockpit (snapped)
   updateCamera(dt: number) {
     this.fwd.set(0, 0, -1).applyQuaternion(this.quat);
     this.up.set(0, 1, 0).applyQuaternion(this.quat);

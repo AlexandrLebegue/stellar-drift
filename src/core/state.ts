@@ -15,6 +15,12 @@ export interface PlayerState {
   systemId: string;
   scans: Record<string, ScanRecord>;
   cargo: Record<string, number>;
+  fuel: number;
+  hull: number;
+  shipsOwned: string[];
+  currentShip: string;
+  modules: Record<string, number>;
+  paint: string;
 }
 
 const SAVE_KEY = 'stellar-drift.save.v1';
@@ -26,6 +32,12 @@ export class Game {
     systemId: 'sys0',
     scans: {},
     cargo: {},
+    fuel: 100,
+    hull: 100,
+    shipsOwned: [],
+    currentShip: 'prototype',
+    modules: {},
+    paint: '#b8bec8',
   };
   systemName = 'Système inconnu';
 
@@ -49,6 +61,10 @@ export class Game {
         Object.assign(this.player, d.player);
         if (!this.player.scans) this.player.scans = {};
         if (!this.player.cargo) this.player.cargo = {};
+        if (!this.player.shipsOwned) this.player.shipsOwned = [];
+        if (!this.player.modules) this.player.modules = {};
+        if (this.player.fuel === undefined) this.player.fuel = 100;
+        if (this.player.hull === undefined) this.player.hull = 100;
       }
       return true;
     } catch {

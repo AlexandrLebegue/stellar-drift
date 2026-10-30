@@ -13,12 +13,17 @@
 
 - **Étape 4 — Scanner** : scan maintenu (3 s, décroît si cible perdue), portée 900 u + cône, révèle type/composition/habitabilité/valeur ; record persistant (id planète déterministe seed+index), prix de vente = valeur × (1 + rares/50) × bonus 150 % première découverte, flash HUD, sauvegarde immédiate.
 
-- **Étape 5 — Amarrage + menu station** : détection station (< 260 u du pad), amarrage assisté (vitesse < 10 + alignement) sinon coque −15 + rebond ; phases « docking » (lerp vers le pad) → « docked » (menu plein écran, caméra orbitale). Menu : MARCHÉ (12 marchandises, prix par type de station + dérive offre/demande), CARTOGRAPHIE (vente des scans), CARBURANT/RÉPARATION, CHANTIER/ÉQUIPEMENT (placeholders étape 7). Undoock = K / UNDOCK.
+- **Étape 5 — Amarrage + menu station** : détection station (< 260 u du pad), amarrage assisté (vitesse < 10 + alignement) sinon coque −15 + rebond ; phases « docking » (lerp vers le pad) → « docked » (menu plein écran, caméra orbitale). Menu : MARCHÉ (12 marchandises, prix par type de station + dérive offre/demande), CARTOGRAPHIE (vente des scans), CARBURANT/RÉPARATION, CHANTIER/ÉQUIPEMENT. Undoock = K / UNDOCK.
 
 - **Étape 6 — Galaxie + saut hyperspatial** : carte galactique plein écran (canvas, 120 systèmes, anneau de portée, sélection tap/clic, info distance/coût), bouton HYPERSPACE + M pour ouvrir, coût carburant = 3 + 0,15×dist % (max 30 %), tunnel de saut 2,8 s (140 lignes additives étirées avec la vitesse, FOV 62→100→62) rendu dans le pipeline PS1, chargement du système destination (id + seed déterministes), flash d'arrivée.
 
+- **Étape 7 — 3 vaisseaux + modules + customisation** :
+  - `shipdefs.ts` : 4 classes (prototype gratuit, Sparrow 25 000, Mule 45 000, Falcon 80 000) avec stats propres (vitesse/poussée/turn/soute/saut/scan/capacité carburant/coque) ; 6 modules (moteur, FSD, soute, scanner, réservoir, coque) 3 niveaux chacun, coût = base×(niv+1) ; 6 peintures.
+  - `models.ts` : 3 coques low-poly distinctes (chasseur effilé, cargo trapu, explorateur à volets balayés) + prototype, matériau de coque exposé (`userData.hullMat`) pour la peinture, glow moteur, vertex-snapping.
+  - `Ship` : `setShip(cls)` (reconstruit le modèle), `setPaint`, `recompute(mods)` (stats effectives = classe + modules), carburant/coque en unités absolues (0..capacité) ; scanner reparamétré selon vaisseau/modules.
+  - Menu station : onglets CHANTIER (acheter/reprendre un vaisseau, stats affichées) et ÉQUIPEMENT (6 modules avec pips de niveau + bouton d'achat, pastilles de peinture). Sauvegarde des vaisseaux possédés / vaisseau courant / modules / peinture / carburant / coque.
+
 ## Reste
-- Étape 7 — 3 vaisseaux + modules + customisation.
 - Étape 8 — Audio (musiques + bruitages WebAudio).
 - Étape 9 — Sauvegarde complète, polish, perf mobile.
 

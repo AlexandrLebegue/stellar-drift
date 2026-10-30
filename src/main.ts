@@ -12,6 +12,7 @@ import { Scanner, ScanTarget } from './world/scan';
 import { HyperspaceTunnel } from './render/hyperspace';
 import { Market } from './economy/market';
 import { Ship } from './ship/ship';
+import { SHIPS, ShipClass, ModuleType, MODULES, moduleCost } from './ship/shipdefs';
 import { HUD } from './ui/hud';
 import { Screens } from './ui/title';
 import { StationMenu, MenuContext } from './ui/stationMenu';
@@ -65,7 +66,7 @@ function openMap() {
     galaxy,
     game.player.systemId,
     ship.jumpRange,
-    ship.fuel,
+    (ship.fuel / ship.fuelCap) * 100,
     startJump,
     closeMap,
   );
@@ -83,8 +84,9 @@ function startJump(dest: SystemDef) {
   if (!cur) return closeMap();
   const d = distTo(cur, dest);
   const cost = jumpCost(d);
-  if (d > ship.jumpRange + 0.01 || ship.fuel < cost) return;
-  ship.fuel -= cost;
+  const havePct = (ship.fuel / ship.fuelCap) * 100;
+  if (d > ship.jumpRange + 0.01 || havePct < cost) return;
+  ship.fuel -= (cost / 100) * ship.fuelCap;
   mapUI?.dispose();
   mapUI = null;
   if (system) {
@@ -98,7 +100,7 @@ function startJump(dest: SystemDef) {
   jumpT = 0;
   game.phase = 'hyperspace';
   hud.flash('SAUT HYPERSPATIAL…');
-  game.save();
+  save();
 }
 
 // --- procedural universe ---
@@ -135,21 +137,121 @@ const menuCtx: MenuContext = {
   market: null as unknown as Market,
   station: null as never,
   hold: ship.hold,
-  fuel: ship.fuel,
-  hull: ship.hull,
+  fuel: (ship.fuel / ship.fuelCap) * 100,
+  hull: (ship.hull / ship.hullMax) * 100,
+  ships: [],
+  modules: [],
+  paint: '#b8bec8',
   onFuel: (pct) => {
-    ship.fuel = Math.min(100, ship.fuel + pct);
-    menuCtx.fuel = ship.fuel;
-    game.save();
+    ship.fuel = Math.min(ship.fuelCap, ship.fuel + (ship.fuelCap * pct) / 100);
+    menuCtx.fuel = (ship.fuel / ship.fuelCap) * 100;
+    save();
   },
   onRepair: (pct) => {
-    ship.hull = Math.min(100, ship.hull + pct);
-    menuCtx.hull = ship.hull;
-    game.save();
+    ship.hull = Math.min(ship.hullMax, ship.hull + (ship.hullMax * pct) / 100);
+    menuCtx.hull = (ship.hull / ship.hullMax) * 100;
+    save();
   },
+  onBuyShip: buyShip,
+  onBuyModule: buyModule,
+  onPaint: paintShip,
   onExit: () => undock(),
 };
 let stationMenu: StationMenu | null = null;
+
+// persist fuel/hull (absolute units) with the rest of the save
+function save() {
+  game.player.fuel = ship.fuel;
+  game.player.hull = ship.hull;
+  game.save();
+}
+
+function reconfigureScanner() {
+  scanner.setParams(ship.scanRange, ship.scanTime);
+}
+
+// apply saved ship/modules/paint/fuel/hull (at boot and after purchases)
+function applyLoadout() {
+  const cls = game.player.currentShip as ShipClass;
+  if (cls in SHIPS) ship.setShip(cls);
+  ship.setPaint(game.player.paint);
+  ship.recompute(game.player.modules as Record<ModuleType, number>);
+  ship.fuel = Math.min(game.player.fuel, ship.fuelCap);
+  ship.hull = Math.min(game.player.hull, ship.hullMax);
+  reconfigureScanner();
+}
+
+function refreshMenuCtx() {
+  if (!stationMenu) return;
+  menuCtx.hold = ship.hold;
+  menuCtx.fuel = (ship.fuel / ship.fuelCap) * 100;
+  menuCtx.hull = (ship.hull / ship.hullMax) * 100;
+  menuCtx.paint = game.player.paint;
+  menuCtx.ships = (['sparrow', 'mule', 'falcon'] as ShipClass[]).map((cls) => {
+    const d = SHIPS[cls];
+    return {
+      cls,
+      name: d.name.toUpperCase(),
+      desc: d.desc,
+      price: d.price,
+      stats:
+        'VIT ' + Math.round(d.maxSpeed) +
+        ' — SOUTE ' + d.hold +
+        ' — SAUT ' + d.jumpRange +
+        ' — SCAN ' + d.scanRange,
+      owned: game.player.shipsOwned.includes(cls),
+      current: game.player.currentShip === cls,
+    };
+  });
+  menuCtx.modules = MODULES.map((m) => ({
+    type: m.type,
+    name: m.name,
+    level: game.player.modules[m.type] ?? 0,
+    max: m.max,
+    cost: moduleCost(m, game.player.modules[m.type] ?? 0),
+  }));
+  stationMenu.render();
+}
+
+function buyShip(cls: ShipClass) {
+  const d = SHIPS[cls];
+  if (d.price === 0) return;
+  const owned = game.player.shipsOwned.includes(cls);
+  if (!owned && game.player.credits < d.price) return;
+  if (!owned) {
+    game.player.credits -= d.price;
+    game.player.shipsOwned.push(cls);
+  }
+  game.player.currentShip = cls;
+  ship.setShip(cls);
+  ship.setPaint(game.player.paint);
+  ship.recompute(game.player.modules as Record<ModuleType, number>);
+  reconfigureScanner();
+  save();
+  refreshMenuCtx();
+}
+
+function buyModule(t: ModuleType) {
+  const def = MODULES.find((m) => m.type === t);
+  if (!def) return;
+  const lvl = game.player.modules[t] ?? 0;
+  if (lvl >= def.max) return;
+  const cost = moduleCost(def, lvl);
+  if (game.player.credits < cost) return;
+  game.player.credits -= cost;
+  game.player.modules[t] = lvl + 1;
+  ship.recompute(game.player.modules as Record<ModuleType, number>);
+  reconfigureScanner();
+  save();
+  refreshMenuCtx();
+}
+
+function paintShip(c: string) {
+  game.player.paint = c;
+  ship.setPaint(c);
+  save();
+  refreshMenuCtx();
+}
 
 let dockTarget: StationBody | null = null;
 let dockCooldown = 0;
@@ -159,10 +261,9 @@ let dockOrbitT = 0;
 function openMenu(st: StationBody) {
   menuCtx.market = new Market(hashStr(st.def.id), st.def.type);
   menuCtx.station = st.def;
-  menuCtx.fuel = ship.fuel;
-  menuCtx.hull = ship.hull;
   if (!stationMenu) stationMenu = new StationMenu(menuCtx);
   stationMenu.ctx = menuCtx;
+  refreshMenuCtx();
   stationMenu.show();
 }
 
@@ -180,10 +281,10 @@ function undock() {
   if (stationMenu) stationMenu.hide();
   game.phase = 'flying';
   hud.flash('AMARRAGE LIBÉRÉ');
-  game.save();
+  save();
 }
 
-window.addEventListener('beforeunload', () => game.save());
+window.addEventListener('beforeunload', () => save());
 
 function resize() {
   const w = window.innerWidth;
@@ -207,8 +308,10 @@ const scanner = new Scanner(900, 3, (rec) => {
   if (system) rec.systemId = system.def.id;
   game.player.scans[rec.planetId] = rec;
   hud.flash('SCAN « ' + rec.name + ' » — ' + rec.price + ' CR (VENDABLE EN STATION)');
-  game.save();
+  save();
 });
+
+applyLoadout();
 
 // nearest station within docking range of its pad
 function findStation(): { st: StationBody; pad: THREE.Vector3; d: number } | null {
@@ -334,8 +437,8 @@ const loop = new GameLoop(
           credits: game.player.credits,
           speed: ship.vel.length(),
           throttle: ship.throttle,
-          fuel: ship.fuel,
-          hull: ship.hull,
+          fuel: (ship.fuel / ship.fuelCap) * 100,
+          hull: (ship.hull / ship.hullMax) * 100,
           targetName: tName,
           targetDist: tDist,
         });
@@ -361,7 +464,7 @@ const loop = new GameLoop(
           game.phase = 'docked';
           hud.setScan(null);
           openMenu(dockTarget);
-          game.save();
+          save();
         }
       }
     } else if (game.phase === 'docked') {
@@ -397,7 +500,7 @@ const loop = new GameLoop(
         camera.fov = 62;
         camera.updateProjectionMatrix();
         hud.flash('BIENVENUE À ' + game.systemName.toUpperCase());
-        game.save();
+        save();
       }
     } else if (game.phase === 'paused') {
       if (fi.confirm || fi.back) resume();
