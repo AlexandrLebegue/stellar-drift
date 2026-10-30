@@ -21,6 +21,8 @@ export interface PlayerState {
   currentShip: string;
   modules: Record<string, number>;
   paint: string;
+  pos?: number[];
+  quat?: number[];
 }
 
 const SAVE_KEY = 'stellar-drift.save.v1';
@@ -47,6 +49,14 @@ export class Game {
         SAVE_KEY,
         JSON.stringify({ v: 1, phase: this.phase, player: this.player }),
       );
+    } catch {
+      // storage unavailable: ignore
+    }
+  }
+
+  static clearSave() {
+    try {
+      localStorage.removeItem(SAVE_KEY);
     } catch {
       // storage unavailable: ignore
     }

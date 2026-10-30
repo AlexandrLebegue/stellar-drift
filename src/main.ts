@@ -54,7 +54,15 @@ function resume() {
   screens.showPause(false);
   sfx.ui();
 }
-const screens = new Screens(startFlight, resume, input.isTouch ? 'PAYSAGE RECOMMANDÉ' : '');
+const screens = new Screens(
+  startFlight,
+  resume,
+  input.isTouch ? 'PAYSAGE RECOMMANDÉ' : '',
+  () => {
+    Game.clearSave();
+    location.reload();
+  },
+);
 
 // --- hyperspace ---
 let mapUI: GalaxyMapUI | null = null;
@@ -136,7 +144,7 @@ function loadSystem(def: SystemDef) {
   ship.reset(new THREE.Vector3(0, 0, 520));
 }
 
-loadSystem(galaxy.systems[0]);
+loadSystem(galaxy.byId(game.player.systemId) ?? galaxy.systems[0]);
 
 // --- station menu ---
 const menuCtx: MenuContext = {
@@ -166,10 +174,12 @@ const menuCtx: MenuContext = {
 };
 let stationMenu: StationMenu | null = null;
 
-// persist fuel/hull (absolute units) with the rest of the save
+// persist fuel/hull/position with the rest of the save
 function save() {
   game.player.fuel = ship.fuel;
   game.player.hull = ship.hull;
+  game.player.pos = [ship.pos.x, ship.pos.y, ship.pos.z];
+  game.player.quat = [ship.quat.x, ship.quat.y, ship.quat.z, ship.quat.w];
   game.save();
 }
 
@@ -185,6 +195,27 @@ function applyLoadout() {
   ship.recompute(game.player.modules as Record<ModuleType, number>);
   ship.fuel = Math.min(game.player.fuel, ship.fuelCap);
   ship.hull = Math.min(game.player.hull, ship.hullMax);
+  // restore saved position for the system we actually loaded
+  if (
+    system &&
+    game.player.systemId === system.def.id &&
+    Array.isArray(game.player.pos) &&
+    game.player.pos.length === 3
+  ) {
+    ship.pos.set(game.player.pos[0], game.player.pos[1], game.player.pos[2]);
+    if (Array.isArray(game.player.quat) && game.player.quat.length === 4) {
+      ship.quat
+        .set(
+          game.player.quat[0],
+          game.player.quat[1],
+          game.player.quat[2],
+          game.player.quat[3],
+        )
+        .normalize();
+    }
+    if (ship.pos.length() > 9000) ship.pos.set(0, 0, 520);
+    ship.updateCamera(0.1);
+  }
   reconfigureScanner();
 }
 
@@ -305,6 +336,14 @@ resize();
 
 const tmpF = new THREE.Vector3();
 const tmpU = new THREE.Vector3();
+let lastFuelP = 100;
+let lastHullP = 100;
+let autoT = 0;
+let bootT = 0;
+let qTimer = 0;
+let fpsAcc = 0;
+let fpsN = 0;
+let qualityH = 240;
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
@@ -564,6 +603,41 @@ const loop = new GameLoop(
     if (system) system.update(dt);
     sky.position.copy(ship.pos);
     sfx.engine(game.phase === 'flying' ? ship.throttle : 0, game.phase === 'flying');
+
+    // periodic autosave while playing
+    autoT += dt;
+    if (autoT >= 10 && (game.phase === 'flying' || game.phase === 'docked')) {
+      autoT = 0;
+      save();
+    }
+
+    // low fuel / low hull warnings (flash on threshold crossing)
+    const fuelP = (ship.fuel / ship.fuelCap) * 100;
+    if (fuelP < 10 && lastFuelP >= 10) hud.flash('CARBURANT BAS — RAFRAÎCHIR EN STATION');
+    lastFuelP = fuelP;
+    const hullP = (ship.hull / ship.hullMax) * 100;
+    if (hullP < 20 && lastHullP >= 20) hud.flash('COQUE ENDOMMAGÉE — RÉPARER EN STATION');
+    lastHullP = hullP;
+
+    // adaptive low-res frame height (mobile perf, hysteresis 45/57 fps)
+    bootT += dt;
+    qTimer += dt;
+    fpsAcc += dt;
+    fpsN++;
+    if (qTimer >= 2) {
+      const fps = fpsAcc > 0 ? fpsN / fpsAcc : 60;
+      if (bootT > 5 && fps < 45 && qualityH > 160) {
+        qualityH = qualityH === 240 ? 200 : 160;
+        ps1.setQuality(qualityH);
+      } else if (fps > 57 && qualityH < 240) {
+        qualityH = Math.min(240, qualityH + 40);
+        ps1.setQuality(qualityH);
+      }
+      fpsAcc = 0;
+      fpsN = 0;
+      qTimer = 0;
+    }
+
     input.endFrame();
     touch.endFrame();
   },

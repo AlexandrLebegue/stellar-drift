@@ -98,13 +98,20 @@ export class Ship {
     this.group.visible = this.camMode !== 'cockpit';
   }
 
-  // reset to a fresh spawn (used on system load)
-  reset(pos: THREE.Vector3) {
+  // reset to a fresh spawn (used on system load); optional saved orientation
+  reset(pos: THREE.Vector3, quat?: THREE.Quaternion) {
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);
-    this.quat.identity();
-    this.camPos.copy(pos).add(new THREE.Vector3(0, 8, 30));
-    this.camLook.copy(pos);
+    if (quat) this.quat.copy(quat).normalize();
+    else this.quat.identity();
+    this.fwd.set(0, 0, -1).applyQuaternion(this.quat);
+    this.up.set(0, 1, 0).applyQuaternion(this.quat);
+    this.camPos
+      .copy(this.pos)
+      .addScaledVector(this.fwd, -10)
+      .addScaledVector(this.up, 2.2);
+    this.tmpLook.copy(this.pos).addScaledVector(this.fwd, 30);
+    this.camLook.copy(this.tmpLook);
     this.group.visible = this.camMode !== 'cockpit';
     this.camMode = 'chase';
   }

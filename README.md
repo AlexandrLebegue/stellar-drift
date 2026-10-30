@@ -41,6 +41,14 @@ npm run preview  # servir le build
 - Thrusters (droite) : poussée + / −.
 - Boutons : HYPERSPACE, SCAN (maintenu), DOCK (contextuel).
 
+## Sauvegarde
+
+- Auto-save dans `localStorage` : toutes les 10 s en jeu, et à chaque scan,
+  amarrage, achat, saut, ou fermeture de l'onglet.
+- Sauvegardé : crédits, vaisseaux possédés / courant, modules, peinture,
+  cargaison, données de scan, carburant/coque, position, système courant.
+- « NOUVEAU JEU » (écran pause) : efface la sauvegarde et relance le jeu.
+
 ## Audio
 
 Musique d'ambiance (5 pistes libres de droits, lecture en playlist aléatoire

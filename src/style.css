@@ -9,6 +9,9 @@
   font-family: 'Courier New', 'Consolas', monospace;
   color: var(--amber);
 }
+/* above the touch layer (z15) so the mute button stays tappable;
+   everything else in the HUD is pointer-events:none */
+#hud { z-index: 16; }
 
 #hud .panel {
   position: absolute;
@@ -128,7 +131,7 @@
   opacity: 0.8;
   transform: translate(-50%, -50%);
 }
-#hud-mute { position: absolute; bottom: 10px; right: 10px; }
+#hud-mute { position: absolute; bottom: 10px; right: 10px; pointer-events: auto; }
 .tbtn {
   position: absolute;
   right: 20px;
@@ -295,6 +298,7 @@
 }
 .screen .tiny { opacity: 0.4; font-size: 11px; }
 .screen .blink { animation: blink 1.2s steps(2) infinite; }
+.screen > button { pointer-events: auto; margin-top: 14px; }
 @keyframes blink {
   50% { opacity: 0; }
 }

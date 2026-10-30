@@ -54,6 +54,8 @@ export class PS1Pipeline {
   private postMat: THREE.ShaderMaterial;
   private lowW: number;
   private lowH = 240;
+  private winW = 1;
+  private winH = 1;
 
   constructor(canvas: HTMLCanvasElement) {
     patchVertexSnapChunk();
@@ -118,12 +120,25 @@ void main() {
   }
 
   // Sets the drawing buffer size and (re)computes the low-res target
-  // from the window aspect (height locked at 240).
+  // from the window aspect (height locked at the current quality).
   resize(winW: number, winH: number) {
-    const aspect = winW / Math.max(1, winH);
+    this.winW = winW;
+    this.winH = winH;
     this.renderer.setSize(winW, winH, false);
+    this.applyQuality();
+  }
+
+  // Adaptive quality: change the low-res frame height (240/200/160)
+  // to trade PS1 chunkiness for frame rate on weak mobile GPUs.
+  setQuality(h: number) {
+    this.lowH = h;
+    this.applyQuality();
+  }
+
+  private applyQuality() {
+    const aspect = this.winW / Math.max(1, this.winH);
     const w = Math.max(2, Math.round(this.lowH * aspect));
-    if (w !== this.lowW) {
+    if (w !== this.lowW || this.rt.height !== this.lowH) {
       this.lowW = w;
       this.snapRes.set(w, this.lowH);
       this.rt.setSize(w, this.lowH);

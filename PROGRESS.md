@@ -25,8 +25,15 @@
 
 - **Étape 8 — Audio** : 5 pistes d'ambiance OpenGameArt (2 CC0, 3 CC-BY 3.0, crédits dans CREDITS.md) ré-encodées en MP3 96 kbps mono dans `public/audio/` (~11 Mo), playlist aléatoire avec fondu 2 s via deux HTMLAudioElement mixés en WebAudio, démarrage après première interaction, bouton SON ON/OFF persisté. Bruitages 100 % synthétisés WebAudio (`src/audio/sfx.ts`) : ronronnement moteur lié à la poussée, blips de scan + chime de fin, whoosh de saut, thump/crash d'amarrage, clics UI.
 
+- **Étape 9 — Sauvegarde, polish, perf mobile** :
+  - Sauvegarde complète (localStorage) : crédits, vaisseaux possédés, vaisseau courant, modules, peinture, cargaison, scans, carburant/coque (unités absolues), position + orientation, système courant. Au démarrage : chargement du système sauvegardé + restauration de la position (avec garde-fou). Auto-save périodique (10 s) + sur chaque événement (scan, amarrage, achats, saut, départs) + beforeunload.
+  - « NOUVEAU JEU » sur l'écran pause : efface la sauvegarde et rechargé.
+  - Avertissements HUD au franchissement des seuils : carburant < 10 %, coque < 20 %.
+  - Perf mobile : résolution basse adaptative (240 → 200 → 160 px de haut, retour auto si > 57 fps, hystérésis 45 fps, 5 s de chauffe), moyenne fps glissante 2 s.
+  - Corrections : bouton SON cliquable au-dessus de la couche tactile (z-index), viewport mobile déjà verrouillé.
+
 ## Reste
-- Étape 9 — Sauvegarde complète, polish, perf mobile.
+- (aucun — les 9 étapes du cahier des charges sont terminées)
 
 ## Notes / blocages
 - (aucun)

@@ -3,7 +3,12 @@ export class Screens {
   private titleEl: HTMLElement;
   private pauseEl: HTMLElement;
 
-  constructor(onStart: () => void, onResume: () => void, extra = '') {
+  constructor(
+    onStart: () => void,
+    onResume: () => void,
+    extra = '',
+    onNewGame?: () => void,
+  ) {
     const ui = document.getElementById('ui-root')!;
     this.titleEl = this.mk(
       ui,
@@ -15,6 +20,25 @@ export class Screens {
     );
     this.pauseEl = this.mk(ui, 'PAUSE', '', 'ENTRÉE — REPRENDRE', onResume);
     this.pauseEl.style.display = 'none';
+    if (onNewGame) {
+      const b = document.createElement('button');
+      b.className = 'tbtninline';
+      b.textContent = 'NOUVEAU JEU';
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onNewGame();
+      });
+      b.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onNewGame();
+        },
+        { passive: false },
+      );
+      this.pauseEl.appendChild(b);
+    }
   }
 
   private mk(
