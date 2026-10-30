@@ -362,11 +362,11 @@ applyLoadout();
 
 // --- audio: unlock on first interaction, mute persisted ---
 const music = new MusicPlayer([
-  '/audio/01-observing-the-star.mp3',
-  '/audio/02-starfield-romance.mp3',
-  '/audio/03-scifi-ambient.mp3',
-  '/audio/04-drifting-beyond-the-stars.mp3',
-  '/audio/05-beyond-the-stars.mp3',
+  'audio/01-observing-the-star.mp3',
+  'audio/02-starfield-romance.mp3',
+  'audio/03-scifi-ambient.mp3',
+  'audio/04-drifting-beyond-the-stars.mp3',
+  'audio/05-beyond-the-stars.mp3',
 ]);
 const AUDIO_KEY = 'stellar-drift.audio';
 const audioMuted = () => localStorage.getItem(AUDIO_KEY) === '1';

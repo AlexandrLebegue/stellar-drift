@@ -1,0 +1,86 @@
+apply plugin: 'com.android.application'
+
+// Versioning : en CI, STELLAR_VERSION_CODE = numéro de run GitHub (toujours
+// croissant) et STELLAR_VERSION_NAME = tag (ex. v1.0.0) ou 0.0.0-ci<n>.
+// En local : versionCode volontairement élevé pour pouvoir installer un build
+// local par-dessus un build CI déjà installé (et vice-versa, cf. README).
+def env = System.getenv()
+def appVersionCode = (env.STELLAR_VERSION_CODE ?: '2000000').toInteger()
+def appVersionName = (env.STELLAR_VERSION_NAME ?: '0.1.0-dev')
+
+// Clé de signature fixe (la même pour chaque build) : indispensable pour que
+// Android accepte une mise à jour par-dessus l'APK précédente (même signature,
+// versionCode plus grand) au lieu de refuser l'installation.
+// Le keystore n'est jamais dans le dépôt : en CI il est décodé depuis le secret
+// GitHub STELLAR_KEYSTORE_B64 (voir .github/workflows/android.yml), en local on
+// pointe dessus via STELLAR_KEYSTORE_FILE (ex. ~/stellar-keystore/stellar-drift.keystore).
+def keystoreFile = file(env.STELLAR_KEYSTORE_FILE ?: '../keystore/stellar-drift.keystore')
+def hasFixedKey = keystoreFile.exists() && env.STELLAR_KEYSTORE_STORE_PASSWORD != null
+
+android {
+    namespace = "com.alexandrelebegue.stellardrift"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.alexandrelebegue.stellardrift"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    if (hasFixedKey) {
+        signingConfigs {
+            stellar {
+                storeFile keystoreFile
+                storePassword env.STELLAR_KEYSTORE_STORE_PASSWORD
+                keyAlias (env.STELLAR_KEYSTORE_ALIAS ?: 'stellar')
+                keyPassword (env.STELLAR_KEYSTORE_KEY_PASSWORD ?: env.STELLAR_KEYSTORE_STORE_PASSWORD)
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        if (hasFixedKey) {
+            // Le build debug utilise aussi la clé fixe : c'est lui que la CI publie.
+            debug { signingConfig signingConfigs.stellar }
+            release { signingConfig signingConfigs.stellar }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

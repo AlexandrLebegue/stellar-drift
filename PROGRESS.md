@@ -32,8 +32,15 @@
   - Perf mobile : résolution basse adaptative (240 → 200 → 160 px de haut, retour auto si > 57 fps, hystérésis 45 fps, 5 s de chauffe), moyenne fps glissante 2 s.
   - Corrections : bouton SON cliquable au-dessus de la couche tactile (z-index), viewport mobile déjà verrouillé.
 
+- **Étape 10 — APK Android (Capacitor 8) + CI** (`APK-TASK.md`) :
+  - `capacitor.config.ts` : appId `com.alexandrelebegue.stellardrift`, appName « Stellar Drift », webDir `dist`, `android.zoomEnabled: false`. Vite en `base: './'` (chemins relatifs, requis pour `file://`) ; chemins audio passés en relatifs (`audio/…`) — seul changement hors packaging, `npm run build` OK, `dist/` contient bien les 5 MP3.
+  - `npx cap add android` (CLI Capacitor 8 exige Node ≥ 22) : manifeste en **paysage** (`sensorLandscape`), **plein écran immersif** (thème `windowFullscreen` + `WindowInsetsControllerCompat` dans `MainActivity`, réappliqué au focus), pas de zoom. Icônes launcher (carré/rond), adaptive foreground et splash **générés procéduralement** (`scripts/gen-icons.mjs`, encodeur PNG maison).
+  - Signature fixe (modèle potato-clicker) : env `STELLAR_KEYSTORE_B64` / `_STORE_PASSWORD` / `_KEY_PASSWORD` / `_ALIAS`, keystore dans `android/keystore/` (gitignoré), `versionCode`/`versionName` depuis `STELLAR_VERSION_CODE` / `STELLAR_VERSION_NAME` (défaut local 2000000 / 0.1.0-dev).
+  - `.github/workflows/android.yml` : push main + tag `v*` + manuel ; Node 22 + Java 21 Temurin ; `npm ci` → `npm run build` → `npx cap sync android` → `./gradlew assembleDebug` ; artefact `stellar-drift-debug.apk` ; release GitHub (`.apk`) sur tag `v*`.
+  - Build Gradle **non vérifié en local** (pas d'Android SDK sur cette machine) : première validation en CI.
+
 ## Reste
-- (aucun — les 9 étapes du cahier des charges sont terminées)
+- **EXE Windows** (`EXE-TASK.md`, « après l'APK ») : Electron + electron-builder (portable + NSIS x64) + workflow `windows.yml`.
 
 ## Notes / blocages
-- (aucun)
+- Le CLI Capacitor 8 exige **Node ≥ 22** (la machine de dev est en Node 20) : les commandes `npx cap …` se font avec un Node 22 (ex. le tarball `node-v22.23.4-linux-x64.tar.xz` du projet potato-clicker).

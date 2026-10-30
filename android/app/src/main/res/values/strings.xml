@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Stellar Drift</string>
+    <string name="title_activity_main">Stellar Drift</string>
+    <string name="package_name">com.alexandrelebegue.stellardrift</string>
+    <string name="custom_url_scheme">com.alexandrelebegue.stellardrift</string>
+</resources>

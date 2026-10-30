@@ -1,0 +1,76 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # Clé de signature fixe (secrets GitHub, jamais dans le dépôt) :
+      # STELLAR_KEYSTORE_B64, STELLAR_KEYSTORE_STORE_PASSWORD,
+      # STELLAR_KEYSTORE_KEY_PASSWORD, STELLAR_KEYSTORE_ALIAS
+      STELLAR_KEYSTORE_B64: ${{ secrets.STELLAR_KEYSTORE_B64 }}
+      STELLAR_KEYSTORE_STORE_PASSWORD: ${{ secrets.STELLAR_KEYSTORE_STORE_PASSWORD }}
+      STELLAR_KEYSTORE_KEY_PASSWORD: ${{ secrets.STELLAR_KEYSTORE_KEY_PASSWORD }}
+      STELLAR_KEYSTORE_ALIAS: ${{ secrets.STELLAR_KEYSTORE_ALIAS || 'stellar' }}
+      # versionCode = numéro de run CI (toujours croissant), versionName = tag
+      STELLAR_VERSION_CODE: ${{ github.run_number }}
+      STELLAR_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.0.0-ci{0}', github.run_number) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Decode fixed keystore
+        if: env.STELLAR_KEYSTORE_B64 != ''
+        run: |
+          mkdir -p android/keystore
+          echo "$STELLAR_KEYSTORE_B64" | base64 -d > android/keystore/stellar-drift.keystore
+          keytool -list -keystore android/keystore/stellar-drift.keystore -storepass "$STELLAR_KEYSTORE_STORE_PASSWORD"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Cap sync android
+        run: npx cap sync android
+
+      - name: Build APK (signed with fixed key)
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellar-drift-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk "stellar-drift-${GITHUB_REF_NAME}.apk"
+          gh release create "$GITHUB_REF_NAME" "stellar-drift-${GITHUB_REF_NAME}.apk" --title "Stellar Drift $GITHUB_REF_NAME" --generate-notes
