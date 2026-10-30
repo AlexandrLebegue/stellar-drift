@@ -74,6 +74,17 @@ export class Ship {
     this.group.visible = this.camMode !== 'cockpit';
   }
 
+  // reset to a fresh spawn (used on system load)
+  reset(pos: THREE.Vector3) {
+    this.pos.copy(pos);
+    this.vel.set(0, 0, 0);
+    this.quat.identity();
+    this.camPos.copy(pos).add(new THREE.Vector3(0, 8, 30));
+    this.camLook.copy(pos);
+    this.group.visible = true;
+    this.camMode = 'chase';
+  }
+
   setThrottle(delta: number, dt: number) {
     if (delta !== 0) {
       this.throttle = Math.min(1, Math.max(0, this.throttle + delta * dt * 0.8));

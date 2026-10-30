@@ -73,6 +73,25 @@ export function makeGlow(size = 64, rgb: readonly [number, number, number]): THR
   return toTexture(c);
 }
 
+// Concentric ring texture (radial stripes with varying alpha) for planet rings.
+export function makeRingTexture(rng: RNG, inner = [180, 160, 130], size = 128): THREE.CanvasTexture {
+  const c = canvas(size, size);
+  const ctx = c.getContext('2d')!;
+  ctx.clearRect(0, 0, size, size);
+  const [r, g, b] = inner;
+  const cx = size / 2;
+  for (let rad = size * 0.28; rad < size / 2; rad += 1) {
+    const t = (rad - size * 0.28) / (size * 0.22);
+    const n = 0.5 + 0.5 * Math.sin(t * 40 + rng.range(0, 6.28));
+    const a = (0.15 + n * 0.55) * (t < 0.08 || t > 0.92 ? 0.4 : 1);
+    ctx.strokeStyle = `rgba(${r},${g},${b},${a.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(cx, cx, rad, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  return toTexture(c);
+}
+
 // Small periodic 1D value noise (smooth, wraps).
 function make1DNoise(rng: RNG, n = 64): (x: number) => number {
   const g = new Float32Array(n);

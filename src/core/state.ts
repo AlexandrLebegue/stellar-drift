@@ -10,13 +10,14 @@ export type Phase =
 
 export interface PlayerState {
   credits: number;
+  systemId: string;
 }
 
 const SAVE_KEY = 'stellar-drift.save.v1';
 
 export class Game {
   phase: Phase = 'title';
-  player: PlayerState = { credits: 10000 };
+  player: PlayerState = { credits: 10000, systemId: 'sys0' };
   systemName = 'Système inconnu';
 
   save() {

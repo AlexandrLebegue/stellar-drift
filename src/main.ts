@@ -4,7 +4,9 @@ import { RNG } from './core/prng';
 import { Input } from './core/input';
 import { Game } from './core/state';
 import { PS1Pipeline } from './render/ps1';
-import { makeSkybox, makeSun, makePlaceholderPlanet } from './world/skybox';
+import { makeSkybox } from './world/skybox';
+import { Galaxy, SystemDef } from './world/galaxy';
+import { StarSystem } from './world/system';
 import { Ship } from './ship/ship';
 import { HUD } from './ui/hud';
 import { Screens } from './ui/title';
@@ -33,7 +35,7 @@ function startFlight() {
   game.phase = 'flying';
   screens.showTitle(false);
   hud.show(true);
-  hud.flash('BIENVENUE A BORD — M : CARTE (BIENTOT)');
+  hud.flash('BIENVENUE A BORD');
 }
 function resume() {
   if (game.phase !== 'paused') return;
@@ -42,20 +44,31 @@ function resume() {
 }
 const screens = new Screens(startFlight, resume);
 
-// --- temporary star system (replaced by the procedural generator in stage 2) ---
-const rng = new RNG(0x5eed1234);
-const sky = makeSkybox(rng, ps1.snapRes);
+// --- procedural universe ---
+const GALAXY_SEED = 0x5eed1234;
+const galaxy = new Galaxy(GALAXY_SEED, 120);
+const sky = makeSkybox(new RNG(0xabc123), ps1.snapRes);
 scene.add(sky);
-scene.add(makeSun(ps1.snapRes));
-const planets = [
-  makePlaceholderPlanet(rng, ps1.snapRes, 14, new THREE.Vector3(300, 0, 0)),
-  makePlaceholderPlanet(rng, ps1.snapRes, 26, new THREE.Vector3(560, 0, 0)),
-];
-planets.forEach((p) => scene.add(p));
 scene.add(new THREE.AmbientLight(0x55607a, 0.9));
 
 const ship = new Ship(ps1.snapRes);
 scene.add(ship.group);
+
+let system: StarSystem | null = null;
+
+function loadSystem(def: SystemDef) {
+  if (system) {
+    scene.remove(system.group);
+    system.dispose();
+  }
+  system = new StarSystem(def, ps1.snapRes);
+  scene.add(system.group);
+  game.systemName = def.name;
+  game.player.systemId = def.id;
+  ship.reset(new THREE.Vector3(0, 0, 520));
+}
+
+loadSystem(galaxy.systems[0]);
 
 window.addEventListener('beforeunload', () => game.save());
 
@@ -82,9 +95,9 @@ const loop = new GameLoop(
       titleT += dt;
       if (fi.confirm) startFlight();
       camera.position.set(
-        Math.sin(titleT * 0.07) * 480,
-        90 + Math.sin(titleT * 0.11) * 40,
-        Math.cos(titleT * 0.07) * 480,
+        Math.sin(titleT * 0.07) * 500,
+        120 + Math.sin(titleT * 0.11) * 50,
+        Math.cos(titleT * 0.07) * 500,
       );
       camera.lookAt(0, 0, 0);
     } else if (game.phase === 'flying') {
@@ -107,18 +120,20 @@ const loop = new GameLoop(
         else scanHeld = 0;
         hud.setScan(fi.scan ? scanHeld : null);
 
-        // placeholder target: nearest planet in a ~10 degree cone
+        // target: nearest planet in a ~10 degree cone
         let tName: string | undefined;
         let tDist: number | undefined;
         ship.forward(tmpF);
-        for (const p of planets) {
-          tmpTo.copy(p.position).sub(ship.pos);
-          const d = tmpTo.length();
-          if (d > 3000) continue;
-          tmpTo.divideScalar(d);
-          if (tmpTo.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
-            tName = 'PLANÈTE';
-            tDist = d;
+        if (system) {
+          for (const p of system.planets) {
+            p.mesh.getWorldPosition(tmpTo).sub(ship.pos);
+            const d = tmpTo.length();
+            if (d > 4000) continue;
+            tmpTo.divideScalar(d);
+            if (tmpTo.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
+              tName = p.data.name.toUpperCase();
+              tDist = d;
+            }
           }
         }
 
@@ -137,8 +152,7 @@ const loop = new GameLoop(
       if (fi.confirm || fi.back) resume();
     }
 
-    planets[0].rotation.y += dt * 0.15;
-    planets[1].rotation.y += dt * 0.08;
+    if (system) system.update(dt);
     sky.position.copy(ship.pos);
     input.endFrame();
   },
