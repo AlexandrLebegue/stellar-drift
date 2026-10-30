@@ -39,8 +39,15 @@
   - `.github/workflows/android.yml` : push main + tag `v*` + manuel ; Node 22 + Java 21 Temurin ; `npm ci` → `npm run build` → `npx cap sync android` → `./gradlew assembleDebug` ; artefact `stellar-drift-debug.apk` ; release GitHub (`.apk`) sur tag `v*`.
   - Build Gradle **non vérifié en local** (pas d'Android SDK sur cette machine) : première validation en CI.
 
+- **Étape 11 — EXE Windows (Electron)** (`EXE-TASK.md`) :
+  - `electron` + `electron-builder` en devDeps ; `electron/main.cjs` : fenêtre 1280×720 redimensionnable, sans barre de menu (`Menu.setApplicationMenu(null)`), F11 plein écran via `before-input-event` (preventDefault, ne perturbe pas les contrôles du jeu), charge `dist/index.html` (chemins relatifs du build `base: './'`) ; musique + sauvegarde hors ligne OK.
+  - Config `electron-builder` dans `package.json` : appId `com.alexandrelebegue.stellardrift`, productName « Stellar Drift », `files` restreint à `dist/` + `electron/` (+ `package.json`) pour un asar propre sans node_modules ; cibles **portable** + **nsis** x64, `artifactName` propres (`stellar-drift-<v>-portable.exe` / `-setup.exe`), NSIS per-user avec choix du répertoire. Script `npm run dist:win`.
+  - `.github/workflows/windows.yml` : push main + tag `v*` + manuel ; windows-latest + Node 22 ; `npm ci` → `npm run build` → `npx electron-builder --win --publish never` (`CSC_IDENTITY_AUTO_DISCOVERY=false`, pas de signature) ; artefact `stellar-drift-windows` ; sur tag `v*` upload des `.exe` dans la release GitHub (créée si absente — évite le conflit avec le workflow Android sur le même tag).
+  - Vérifié en local (Linux) : schema electron-builder OK, cible **portable** buildée de bout en bout (`stellar-drift-0.1.0-portable.exe`, PE32 valide) ; la cible NSIS échoue **localement** uniquement faute de `wine` (rcedit) — sans objet sur `windows-latest` où rcedit tourne nativement.
+
 ## Reste
-- **EXE Windows** (`EXE-TASK.md`, « après l'APK ») : Electron + electron-builder (portable + NSIS x64) + workflow `windows.yml`.
+- (aucun — les 11 étapes sont terminées ; APK et EXE attendent la CI de ProxBoss)
 
 ## Notes / blocages
 - Le CLI Capacitor 8 exige **Node ≥ 22** (la machine de dev est en Node 20) : les commandes `npx cap …` se font avec un Node 22 (ex. le tarball `node-v22.23.4-linux-x64.tar.xz` du projet potato-clicker).
+- Cross-build NSIS depuis Linux nécessite `wine` (absent ici, pas de root) : validation NSIS première CI `windows-latest`.

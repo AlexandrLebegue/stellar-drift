@@ -115,3 +115,33 @@ sans désinstallation, et la sauvegarde (`localStorage`) est **conservée**.
 - **Versioning** : en CI `versionCode = numéro de run GitHub` (toujours
   croissant) et `versionName = tag` ou `0.0.0-ci<n>` ; en local
   `versionCode` volontairement élevé (2 000 000) pour croiser les deux mondes.
+
+## Windows (.exe)
+
+Version bureau avec **Electron** (`electron` + `electron-builder` en devDeps) :
+
+- `electron/main.cjs` : fenêtre **1280×720 redimensionnable**, **sans barre de
+  menu**, **F11 = plein écran** (intercepté au niveau fenêtre, hors du jeu),
+  charge `dist/index.html` en `file://`. La musique (`dist/audio/`) et la
+  sauvegarde (`localStorage` du profil Electron) fonctionnent **hors ligne**.
+- Config `electron-builder` dans `package.json` : `appId =
+  com.alexandrelebegue.stellardrift`, `productName = "Stellar Drift"`, cibles
+  **portable** (un seul `.exe`) + **NSIS** (installeur, per-user, choix du
+  répertoire), **x64**.
+
+```bash
+# Build local des .exe (nécessite Node + le SDK/SDK Electron selon l'OS ;
+# le cross-build NSIS depuis Linux exige wine)
+npm run build
+npm run dist:win
+# -> release/stellar-drift-<version>-portable.exe
+# -> release/stellar-drift-<version>-setup.exe
+```
+
+### CI (`.github/workflows/windows.yml`)
+
+Déclencheurs : push sur `main`, tag `v*`, manuel. `windows-latest`, Node 22 :
+`npm ci` → `npm run build` → `npx electron-builder --win --publish never`
+(pas de signature de code). Artefact `stellar-drift-windows` (les 2 `.exe`) ;
+sur un tag `v*`, les `.exe` sont ajoutés à la **release GitHub** du tag
+(créée si le workflow Android ne l'a pas déjà créée).

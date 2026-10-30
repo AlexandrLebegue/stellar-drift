@@ -3,10 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist:win": "electron-builder --win"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
@@ -16,7 +18,42 @@
   "devDependencies": {
     "@capacitor/cli": "^8.6.0",
     "@types/three": "^0.160.0",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.8"
+  },
+  "build": {
+    "appId": "com.alexandrelebegue.stellardrift",
+    "productName": "Stellar Drift",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "stellar-drift-${version}-portable.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "stellar-drift-${version}-setup.exe"
+    }
   }
 }

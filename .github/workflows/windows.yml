@@ -1,0 +1,55 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-exe:
+    name: Build Windows (portable + NSIS)
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Build Electron (portable + NSIS, x64)
+        run: npx electron-builder --win --publish never
+        env:
+          # Pas de signature de code (non requis pour ce projet).
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellar-drift-windows
+          path: |
+            release/stellar-drift-*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # La release peut avoir été créée en parallèle par le workflow Android
+          # (même tag v*) : on ne la crée que si elle n'existe pas.
+          if (-not (gh release view "$env:GITHUB_REF_NAME" --json name -q .name 2>$null)) {
+            gh release create "$env:GITHUB_REF_NAME" --title "Stellar Drift $env:GITHUB_REF_NAME" --generate-notes
+          }
+          gh release upload "$env:GITHUB_REF_NAME" "release/stellar-drift-*.exe" --clobber

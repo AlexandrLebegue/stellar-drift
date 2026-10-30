@@ -1,4 +1,7 @@
 node_modules
 dist
+release
 android/keystore/
 android/local.properties
+android/build
+android/app/build
