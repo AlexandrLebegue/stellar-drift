@@ -8,6 +8,7 @@ import { PS1Pipeline } from './render/ps1';
 import { makeSkybox } from './world/skybox';
 import { Galaxy, SystemDef } from './world/galaxy';
 import { StarSystem } from './world/system';
+import { Scanner, ScanTarget } from './world/scan';
 import { Ship } from './ship/ship';
 import { HUD } from './ui/hud';
 import { Screens } from './ui/title';
@@ -86,8 +87,15 @@ resize();
 
 const tmpF = new THREE.Vector3();
 const tmpTo = new THREE.Vector3();
-let scanHeld = 0;
+const posPool: THREE.Vector3[] = Array.from({ length: 12 }, () => new THREE.Vector3());
 let titleT = 0;
+
+const scanner = new Scanner(900, 3, (rec) => {
+  if (system) rec.systemId = system.def.id;
+  game.player.scans[rec.planetId] = rec;
+  hud.flash('SCAN « ' + rec.name + ' » — ' + rec.price + ' CR (VENDABLE EN STATION)');
+  game.save();
+});
 
 const loop = new GameLoop(
   (dt) => {
@@ -118,16 +126,31 @@ const loop = new GameLoop(
         ship.setThrottle(fi.throttleIn, dt);
         ship.update(dt, fi);
         ship.getCamera(camera);
+        ship.forward(tmpF);
 
-        // scan (held) — real scan mechanic arrives in stage 4
-        if (fi.scan) scanHeld = Math.min(1, scanHeld + dt / 2.5);
-        else scanHeld = 0;
-        hud.setScan(fi.scan ? scanHeld : null);
+        // scan (held): must stay on target, in range, not already scanned
+        if (system) {
+          const targets: ScanTarget[] = [];
+          let i = 0;
+          for (const p of system.planets) {
+            if (game.player.scans[p.data.id]) continue;
+            targets.push({
+              id: p.data.id,
+              name: p.data.name,
+              type: p.data.type,
+              composition: p.data.composition,
+              habitability: p.data.habitability,
+              scienceValue: p.data.scienceValue,
+              position: p.mesh.getWorldPosition(posPool[i++]),
+            });
+          }
+          scanner.update(dt, fi.scan, ship.pos, tmpF, targets);
+        }
+        hud.setScan(fi.scan ? scanner.progress : null);
 
-        // target: nearest planet in a ~10 degree cone
+        // HUD target: nearest planet in a ~10 degree cone
         let tName: string | undefined;
         let tDist: number | undefined;
-        ship.forward(tmpF);
         if (system) {
           for (const p of system.planets) {
             p.mesh.getWorldPosition(tmpTo).sub(ship.pos);
@@ -135,7 +158,7 @@ const loop = new GameLoop(
             if (d > 4000) continue;
             tmpTo.divideScalar(d);
             if (tmpTo.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
-              tName = p.data.name.toUpperCase();
+              tName = p.data.name.toUpperCase() + (game.player.scans[p.data.id] ? ' [SCANNÉE]' : '');
               tDist = d;
             }
           }

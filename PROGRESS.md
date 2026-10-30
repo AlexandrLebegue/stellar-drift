@@ -11,8 +11,9 @@
 
 - **Étape 3 — Contrôles mobiles** : joystick virtuel (gauche, tangage/lacet), boutons THR+ / THR−, SCAN (maintenu), HYPERSPACE, DOCK (contextuel, masqué), CAM. Multi-touch par identifiant, `touch-action:none` + preventDefault, events souris synthétiques ignorés. Note « paysage » sur l'écran titre.
 
+- **Étape 4 — Scanner** : scan maintenu (3 s, décroît si cible perdue), portée 900 u + cône, révèle type/composition/habitabilité/valeur ; record persistant (id planète déterministe seed+index), prix de vente = valeur × (1 + rares/50) × bonus 150 % première découverte, flash HUD, sauvegarde immédiate.
+
 ## Reste
-- Étape 4 — Scanner + données de scan.
 - Étape 5 — Amarrage + menu station + marché.
 - Étape 6 — Galaxie + carte galactique + saut hyperspatial.
 - Étape 7 — 3 vaisseaux + modules + customisation.

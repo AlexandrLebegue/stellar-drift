@@ -43,7 +43,7 @@ export class StarSystem {
     const nPlanets = rng.int(2, 8);
     let r = rng.range(220, 320);
     for (let i = 0; i < nPlanets; i++) {
-      const data = makePlanetData(rng, def.name);
+      const data = makePlanetData(rng, def.name, i, def.id + '-' + i);
       const orbit = new THREE.Group();
       orbit.rotation.x = rng.range(-0.12, 0.12);
       orbit.rotation.z = rng.range(-0.12, 0.12);

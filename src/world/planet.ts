@@ -2,23 +2,9 @@ import * as THREE from 'three';
 import { RNG } from '../core/prng';
 import { applyPS1 } from '../render/ps1';
 import { makePlanetTexture, makeRingTexture } from '../render/textures';
+import type { PlanetType, Composition } from '../core/types';
 
-export type PlanetType =
-  | 'rocheuse'
-  | 'glacee'
-  | 'gazeuse'
-  | 'ocean'
-  | 'lave'
-  | 'terrestre';
-
-export interface Composition {
-  fer: number;
-  silicates: number;
-  eau: number;
-  methane: number;
-  rares: number;
-  autre: number;
-}
+export type { PlanetType, Composition };
 
 export interface PlanetData {
   id: string;
@@ -100,9 +86,14 @@ function jitterComp(rng: RNG, base: Composition): Composition {
   return c;
 }
 
-let counter = 0;
-
-export function makePlanetData(rng: RNG, systemName: string): PlanetData {
+// Deterministic per (system, index): ids stay stable across re-loads so
+// saved scan data keeps matching the regenerated planet.
+export function makePlanetData(
+  rng: RNG,
+  systemName: string,
+  index: number,
+  id: string,
+): PlanetData {
   const type = rng.pick(TYPES);
   const spec = SPECS[type];
   const composition = jitterComp(rng, spec.baseComp);
@@ -111,10 +102,9 @@ export function makePlanetData(rng: RNG, systemName: string): PlanetData {
   const scienceValue = Math.round(
     (400 + composition.rares * 120 + radius * 15 + rng.range(0, 600)) * (habitability > 0.4 ? 1.5 : 1),
   );
-  const id = 'pl' + (counter++).toString(36);
   return {
     id,
-    name: systemName + ' ' + String.fromCharCode(65 + (counter % 26)),
+    name: systemName + ' ' + String.fromCharCode(65 + (index % 26)),
     type,
     radius,
     composition,
