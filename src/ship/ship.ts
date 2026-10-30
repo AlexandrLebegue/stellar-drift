@@ -16,6 +16,7 @@ export class Ship {
 
   maxSpeed = 150;
   maxThrust = 60;
+  hold = 16;
   drag = 0.45;
   turnPitch = 1.5;
   turnYaw = 1.1;
@@ -117,7 +118,14 @@ export class Ship {
     const glow = 0.4 + this.throttle * 1.6;
     this.engineGlow.scale.set(glow, glow, 1);
 
-    // camera: chase (smoothed) or cockpit (snapped)
+    this.updateCamera(dt);
+  }
+
+  // camera: chase (smoothed) or cockpit (snapped) — called by update()
+  // and standalone during docking
+  updateCamera(dt: number) {
+    this.fwd.set(0, 0, -1).applyQuaternion(this.quat);
+    this.up.set(0, 1, 0).applyQuaternion(this.quat);
     if (this.camMode === 'chase') {
       this.camDesire
         .copy(this.pos)
@@ -140,6 +148,14 @@ export class Ship {
   getCamera(camera: THREE.PerspectiveCamera) {
     camera.position.copy(this.camPos);
     camera.lookAt(this.camLook);
+  }
+
+  get cameraPos() {
+    return this.camPos;
+  }
+
+  get cameraLook() {
+    return this.camLook;
   }
 
   forward(out: THREE.Vector3): THREE.Vector3 {

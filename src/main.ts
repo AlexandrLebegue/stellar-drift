@@ -1,17 +1,19 @@
 import * as THREE from 'three';
 import { GameLoop } from './core/loop';
-import { RNG } from './core/prng';
+import { RNG, hashStr } from './core/prng';
 import { Input } from './core/input';
 import { TouchControls } from './core/touch';
 import { Game } from './core/state';
 import { PS1Pipeline } from './render/ps1';
 import { makeSkybox } from './world/skybox';
 import { Galaxy, SystemDef } from './world/galaxy';
-import { StarSystem } from './world/system';
+import { StarSystem, StationBody } from './world/system';
 import { Scanner, ScanTarget } from './world/scan';
+import { Market } from './economy/market';
 import { Ship } from './ship/ship';
 import { HUD } from './ui/hud';
 import { Screens } from './ui/title';
+import { StationMenu, MenuContext } from './ui/stationMenu';
 import './style.css';
 
 // Raw color pipeline (no sRGB<->linear conversions): colors are written
@@ -73,6 +75,60 @@ function loadSystem(def: SystemDef) {
 
 loadSystem(galaxy.systems[0]);
 
+// --- station menu ---
+const menuCtx: MenuContext = {
+  game,
+  market: null as unknown as Market,
+  station: null as never,
+  hold: ship.hold,
+  fuel: ship.fuel,
+  hull: ship.hull,
+  onFuel: (pct) => {
+    ship.fuel = Math.min(100, ship.fuel + pct);
+    menuCtx.fuel = ship.fuel;
+    game.save();
+  },
+  onRepair: (pct) => {
+    ship.hull = Math.min(100, ship.hull + pct);
+    menuCtx.hull = ship.hull;
+    game.save();
+  },
+  onExit: () => undock(),
+};
+let stationMenu: StationMenu | null = null;
+
+let dockTarget: StationBody | null = null;
+let dockCooldown = 0;
+let dockPrompted = false;
+let dockOrbitT = 0;
+
+function openMenu(st: StationBody) {
+  menuCtx.market = new Market(hashStr(st.def.id), st.def.type);
+  menuCtx.station = st.def;
+  menuCtx.fuel = ship.fuel;
+  menuCtx.hull = ship.hull;
+  if (!stationMenu) stationMenu = new StationMenu(menuCtx);
+  stationMenu.ctx = menuCtx;
+  stationMenu.show();
+}
+
+function undock() {
+  if (!dockTarget) return;
+  const center = dockTarget.mesh.getWorldPosition(posPool[10]);
+  const padPos = dockTarget.pad.getWorldPosition(posPool[11]);
+  const dir = tmpA.copy(padPos).sub(center).normalize();
+  ship.pos.copy(padPos).addScaledVector(dir, 30);
+  ship.vel.copy(dir).multiplyScalar(10);
+  ship.quat.copy(dockTarget.mesh.getWorldQuaternion(tmpQ));
+  ship.group.visible = true;
+  ship.cameraPos.copy(ship.pos).addScaledVector(dir, 20);
+  dockTarget = null;
+  if (stationMenu) stationMenu.hide();
+  game.phase = 'flying';
+  hud.flash('AMARRAGE LIBÉRÉ');
+  game.save();
+}
+
 window.addEventListener('beforeunload', () => game.save());
 
 function resize() {
@@ -86,7 +142,10 @@ window.addEventListener('resize', resize);
 resize();
 
 const tmpF = new THREE.Vector3();
-const tmpTo = new THREE.Vector3();
+const tmpU = new THREE.Vector3();
+const tmpA = new THREE.Vector3();
+const tmpB = new THREE.Vector3();
+const tmpQ = new THREE.Quaternion();
 const posPool: THREE.Vector3[] = Array.from({ length: 12 }, () => new THREE.Vector3());
 let titleT = 0;
 
@@ -96,6 +155,26 @@ const scanner = new Scanner(900, 3, (rec) => {
   hud.flash('SCAN « ' + rec.name + ' » — ' + rec.price + ' CR (VENDABLE EN STATION)');
   game.save();
 });
+
+// nearest station within docking range of its pad
+function findStation(): { st: StationBody; pad: THREE.Vector3; d: number } | null {
+  if (!system) return null;
+  let best: StationBody | null = null;
+  let bestD = Infinity;
+  let bi = 10;
+  for (let i = 0; i < system.stations.length; i++) {
+    const st = system.stations[i];
+    st.pad.getWorldPosition(posPool[i]);
+    const d = posPool[i].distanceTo(ship.pos);
+    if (d < 260 && d < bestD) {
+      best = st;
+      bestD = d;
+      bi = i;
+    }
+  }
+  if (!best) return null;
+  return { st: best, pad: posPool[bi], d: bestD };
+}
 
 const loop = new GameLoop(
   (dt) => {
@@ -153,14 +232,45 @@ const loop = new GameLoop(
         let tDist: number | undefined;
         if (system) {
           for (const p of system.planets) {
-            p.mesh.getWorldPosition(tmpTo).sub(ship.pos);
-            const d = tmpTo.length();
+            p.mesh.getWorldPosition(tmpA).sub(ship.pos);
+            const d = tmpA.length();
             if (d > 4000) continue;
-            tmpTo.divideScalar(d);
-            if (tmpTo.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
+            tmpA.divideScalar(d);
+            if (tmpA.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
               tName = p.data.name.toUpperCase() + (game.player.scans[p.data.id] ? ' [SCANNÉE]' : '');
               tDist = d;
             }
+          }
+        }
+
+        // docking approach
+        dockCooldown = Math.max(0, dockCooldown - dt);
+        const near = findStation();
+        touch.setDockVisible(!!near);
+        if (near && !dockPrompted) {
+          dockPrompted = true;
+          hud.flash('STATION EN VUE — VITESSE < 10, ALIGNÉ, PUIS K / DOCK');
+        }
+        if (!near && dockPrompted) dockPrompted = false;
+        if (fi.dock && near && dockCooldown <= 0) {
+          tmpB.copy(near.pad).sub(ship.pos);
+          const d = tmpB.length();
+          tmpB.divideScalar(d);
+          const speed = ship.vel.length();
+          const aligned = tmpB.dot(tmpF) > 0.9;
+          if (speed < 10 && aligned) {
+            dockTarget = near.st;
+            game.phase = 'docking';
+            hud.setScan(null);
+          } else {
+            ship.hull = Math.max(0, ship.hull - 15);
+            ship.vel.addScaledVector(tmpB, 18);
+            dockCooldown = 2;
+            hud.flash(
+              speed >= 10
+                ? 'AMARRAGE ÉCHOUÉ — TROP RAPIDE (COQUE -15)'
+                : 'AMARRAGE ÉCHOUÉ — MAL ALIGNÉ (COQUE -15)',
+            );
           }
         }
 
@@ -174,6 +284,44 @@ const loop = new GameLoop(
           targetName: tName,
           targetDist: tDist,
         });
+      }
+    } else if (game.phase === 'docking') {
+      if (!dockTarget || !system) {
+        game.phase = 'flying';
+      } else {
+        const padPos = dockTarget.pad.getWorldPosition(posPool[10]);
+        const k = 1 - Math.exp(-3 * dt);
+        ship.pos.lerp(padPos, k);
+        dockTarget.mesh.getWorldQuaternion(tmpQ);
+        ship.quat.slerp(tmpQ, k);
+        ship.vel.multiplyScalar(Math.exp(-4 * dt));
+        ship.group.position.copy(ship.pos);
+        ship.group.quaternion.copy(ship.quat);
+        ship.updateCamera(dt);
+        ship.getCamera(camera);
+        if (ship.pos.distanceTo(padPos) < 4) {
+          ship.pos.copy(padPos);
+          ship.group.visible = false;
+          dockOrbitT = 0;
+          game.phase = 'docked';
+          hud.setScan(null);
+          openMenu(dockTarget);
+          game.save();
+        }
+      }
+    } else if (game.phase === 'docked') {
+      if (!dockTarget) {
+        game.phase = 'flying';
+      } else {
+        // slow cinematic orbit around the station
+        dockOrbitT += dt * 0.15;
+        const c = dockTarget.mesh.getWorldPosition(posPool[10]);
+        camera.position.set(
+          c.x + Math.cos(dockOrbitT) * 130,
+          c.y + 45,
+          c.z + Math.sin(dockOrbitT) * 130,
+        );
+        camera.lookAt(c);
       }
     } else if (game.phase === 'paused') {
       if (fi.confirm || fi.back) resume();

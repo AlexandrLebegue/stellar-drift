@@ -5,22 +5,28 @@ export type Phase =
   | 'title'
   | 'flying'
   | 'paused'
+  | 'docking'
+  | 'docked'
   | 'map'
-  | 'scanning'
-  | 'hyperspace'
-  | 'docked';
+  | 'hyperspace';
 
 export interface PlayerState {
   credits: number;
   systemId: string;
   scans: Record<string, ScanRecord>;
+  cargo: Record<string, number>;
 }
 
 const SAVE_KEY = 'stellar-drift.save.v1';
 
 export class Game {
   phase: Phase = 'title';
-  player: PlayerState = { credits: 10000, systemId: 'sys0', scans: {} };
+  player: PlayerState = {
+    credits: 10000,
+    systemId: 'sys0',
+    scans: {},
+    cargo: {},
+  };
   systemName = 'Système inconnu';
 
   save() {
@@ -42,6 +48,7 @@ export class Game {
       if (d && d.player) {
         Object.assign(this.player, d.player);
         if (!this.player.scans) this.player.scans = {};
+        if (!this.player.cargo) this.player.cargo = {};
       }
       return true;
     } catch {
