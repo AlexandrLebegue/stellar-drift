@@ -17,6 +17,7 @@ export class Ship {
   maxSpeed = 150;
   maxThrust = 60;
   hold = 16;
+  jumpRange = 10;
   drag = 0.45;
   turnPitch = 1.5;
   turnYaw = 1.1;

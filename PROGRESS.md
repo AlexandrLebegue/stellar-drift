@@ -13,9 +13,11 @@
 
 - **Étape 4 — Scanner** : scan maintenu (3 s, décroît si cible perdue), portée 900 u + cône, révèle type/composition/habitabilité/valeur ; record persistant (id planète déterministe seed+index), prix de vente = valeur × (1 + rares/50) × bonus 150 % première découverte, flash HUD, sauvegarde immédiate.
 
+- **Étape 5 — Amarrage + menu station** : détection station (< 260 u du pad), amarrage assisté (vitesse < 10 + alignement) sinon coque −15 + rebond ; phases « docking » (lerp vers le pad) → « docked » (menu plein écran, caméra orbitale). Menu : MARCHÉ (12 marchandises, prix par type de station + dérive offre/demande), CARTOGRAPHIE (vente des scans), CARBURANT/RÉPARATION, CHANTIER/ÉQUIPEMENT (placeholders étape 7). Undoock = K / UNDOCK.
+
+- **Étape 6 — Galaxie + saut hyperspatial** : carte galactique plein écran (canvas, 120 systèmes, anneau de portée, sélection tap/clic, info distance/coût), bouton HYPERSPACE + M pour ouvrir, coût carburant = 3 + 0,15×dist % (max 30 %), tunnel de saut 2,8 s (140 lignes additives étirées avec la vitesse, FOV 62→100→62) rendu dans le pipeline PS1, chargement du système destination (id + seed déterministes), flash d'arrivée.
+
 ## Reste
-- Étape 5 — Amarrage + menu station + marché.
-- Étape 6 — Galaxie + carte galactique + saut hyperspatial.
 - Étape 7 — 3 vaisseaux + modules + customisation.
 - Étape 8 — Audio (musiques + bruitages WebAudio).
 - Étape 9 — Sauvegarde complète, polish, perf mobile.

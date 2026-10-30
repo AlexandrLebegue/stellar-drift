@@ -6,14 +6,16 @@ import { TouchControls } from './core/touch';
 import { Game } from './core/state';
 import { PS1Pipeline } from './render/ps1';
 import { makeSkybox } from './world/skybox';
-import { Galaxy, SystemDef } from './world/galaxy';
+import { Galaxy, SystemDef, jumpCost } from './world/galaxy';
 import { StarSystem, StationBody } from './world/system';
 import { Scanner, ScanTarget } from './world/scan';
+import { HyperspaceTunnel } from './render/hyperspace';
 import { Market } from './economy/market';
 import { Ship } from './ship/ship';
 import { HUD } from './ui/hud';
 import { Screens } from './ui/title';
 import { StationMenu, MenuContext } from './ui/stationMenu';
+import { GalaxyMapUI, distTo } from './ui/galaxyMap';
 import './style.css';
 
 // Raw color pipeline (no sRGB<->linear conversions): colors are written
@@ -49,6 +51,56 @@ function resume() {
 }
 const screens = new Screens(startFlight, resume, input.isTouch ? 'PAYSAGE RECOMMANDÉ' : '');
 
+// --- hyperspace ---
+let mapUI: GalaxyMapUI | null = null;
+let jumpT = 0;
+const JUMP_DUR = 2.8;
+let jumpDest: SystemDef | null = null;
+
+function openMap() {
+  if (game.phase !== 'flying') return;
+  game.phase = 'map';
+  hud.setScan(null);
+  mapUI = new GalaxyMapUI(
+    galaxy,
+    game.player.systemId,
+    ship.jumpRange,
+    ship.fuel,
+    startJump,
+    closeMap,
+  );
+  mapUI.show();
+}
+function closeMap() {
+  if (game.phase !== 'map') return;
+  mapUI?.dispose();
+  mapUI = null;
+  game.phase = 'flying';
+}
+function startJump(dest: SystemDef) {
+  if (game.phase !== 'map') return;
+  const cur = galaxy.byId(game.player.systemId);
+  if (!cur) return closeMap();
+  const d = distTo(cur, dest);
+  const cost = jumpCost(d);
+  if (d > ship.jumpRange + 0.01 || ship.fuel < cost) return;
+  ship.fuel -= cost;
+  mapUI?.dispose();
+  mapUI = null;
+  if (system) {
+    scene.remove(system.group);
+    system.dispose();
+  }
+  system = null;
+  ship.group.visible = false;
+  scene.add(tunnel.group);
+  jumpDest = dest;
+  jumpT = 0;
+  game.phase = 'hyperspace';
+  hud.flash('SAUT HYPERSPATIAL…');
+  game.save();
+}
+
 // --- procedural universe ---
 const GALAXY_SEED = 0x5eed1234;
 const galaxy = new Galaxy(GALAXY_SEED, 120);
@@ -58,6 +110,8 @@ scene.add(new THREE.AmbientLight(0x55607a, 0.9));
 
 const ship = new Ship(ps1.snapRes);
 scene.add(ship.group);
+
+const tunnel = new HyperspaceTunnel(ps1.snapRes);
 
 let system: StarSystem | null = null;
 
@@ -201,6 +255,7 @@ const loop = new GameLoop(
         screens.showPause(true);
         hud.setScan(null);
       }
+      if (game.phase === 'flying' && (fi.map || fi.jump)) openMap();
       if (game.phase === 'flying') {
         ship.setThrottle(fi.throttleIn, dt);
         ship.update(dt, fi);
@@ -322,6 +377,27 @@ const loop = new GameLoop(
           c.z + Math.sin(dockOrbitT) * 130,
         );
         camera.lookAt(c);
+      }
+    } else if (game.phase === 'map') {
+      if (fi.back) closeMap();
+    } else if (game.phase === 'hyperspace') {
+      jumpT += dt;
+      const t = Math.min(1, jumpT / JUMP_DUR);
+      const s = Math.sin(Math.PI * t);
+      tunnel.update(dt, s);
+      camera.position.set(0, 0, 0);
+      camera.quaternion.identity();
+      camera.fov = 62 + 38 * s;
+      camera.updateProjectionMatrix();
+      if (t >= 1) {
+        scene.remove(tunnel.group);
+        if (jumpDest) loadSystem(jumpDest);
+        jumpDest = null;
+        game.phase = 'flying';
+        camera.fov = 62;
+        camera.updateProjectionMatrix();
+        hud.flash('BIENVENUE À ' + game.systemName.toUpperCase());
+        game.save();
       }
     } else if (game.phase === 'paused') {
       if (fi.confirm || fi.back) resume();

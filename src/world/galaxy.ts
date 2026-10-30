@@ -29,6 +29,11 @@ const STAR_TABLE: Record<StarType, { color: number; radius: number }> = {
 const SYL_A = ['ka', 'vel', 'or', 'tha', 'ru', 'en', 'do', 'ma', 'ri', 'xa', 'no', 'ti', 'sa', 'lu', 'vo', 'ba', 'ne', 'ze'];
 const SYL_B = ['ar', 'eth', 'un', 'os', 'ix', 'or', 'an', 'il', 'en', 'ur', 'ak', 'os', 'ir', 'am', 'on', 'et', 'ys', 'al'];
 
+// Fuel cost of a jump, in percent, from the map distance.
+export function jumpCost(dist: number): number {
+  return Math.min(30, 3 + dist * 0.15);
+}
+
 export function genName(rng: RNG): string {
   const parts: string[] = [];
   const n = rng.chance(0.5) ? 2 : 3;
