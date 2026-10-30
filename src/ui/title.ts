@@ -3,7 +3,7 @@ export class Screens {
   private titleEl: HTMLElement;
   private pauseEl: HTMLElement;
 
-  constructor(onStart: () => void, onResume: () => void) {
+  constructor(onStart: () => void, onResume: () => void, extra = '') {
     const ui = document.getElementById('ui-root')!;
     this.titleEl = this.mk(
       ui,
@@ -11,6 +11,7 @@ export class Screens {
       'JEU SPATIAL — RENDU PS1',
       'APPUYEZ ENTRÉE — TOUCHEZ L\u2019ÉCRAN',
       onStart,
+      extra,
     );
     this.pauseEl = this.mk(ui, 'PAUSE', '', 'ENTRÉE — REPRENDRE', onResume);
     this.pauseEl.style.display = 'none';
@@ -22,6 +23,7 @@ export class Screens {
     sub: string,
     blink: string,
     cb: () => void,
+    extra = '',
   ): HTMLElement {
     const el = document.createElement('div');
     el.className = 'screen';
@@ -29,6 +31,7 @@ export class Screens {
       '<h1>' + h1 + '</h1>',
       sub ? '<p>' + sub + '</p>' : '',
       blink ? '<p class="blink">' + blink + '</p>' : '',
+      extra ? '<p class="tiny">' + extra + '</p>' : '',
       '<p class="tiny">v0.1 — prototype</p>',
     ].join('');
     el.addEventListener('click', cb);

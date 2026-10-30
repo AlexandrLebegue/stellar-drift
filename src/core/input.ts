@@ -12,6 +12,7 @@ export interface FlightInput {
   cam: boolean;
   confirm: boolean;
   back: boolean;
+  dock: boolean;
 }
 
 export class Input {
@@ -33,8 +34,14 @@ export class Input {
       this.keys.clear();
       this.mouseDown = false;
     });
-    window.addEventListener('mousedown', () => (this.mouseDown = true));
-    window.addEventListener('mouseup', () => (this.mouseDown = false));
+    window.addEventListener('mousedown', (e) => {
+      if (this.isTouch) return; // synthesized mouse events after touch
+      this.mouseDown = true;
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (this.isTouch) return;
+      this.mouseDown = false;
+    });
   }
 
   down(...codes: string[]): boolean {
@@ -76,6 +83,7 @@ export class Input {
       cam: this.pressed('KeyC'),
       confirm: this.pressed('Enter'),
       back: this.pressed('Escape'),
+      dock: this.pressed('KeyK'),
     };
   }
 }

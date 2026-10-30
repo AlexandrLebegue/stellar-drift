@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GameLoop } from './core/loop';
 import { RNG } from './core/prng';
 import { Input } from './core/input';
+import { TouchControls } from './core/touch';
 import { Game } from './core/state';
 import { PS1Pipeline } from './render/ps1';
 import { makeSkybox } from './world/skybox';
@@ -27,6 +28,7 @@ const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 60000);
 const game = new Game();
 game.load();
 const input = new Input();
+const touch = new TouchControls();
 const hud = new HUD();
 hud.show(false);
 
@@ -42,7 +44,7 @@ function resume() {
   game.phase = 'flying';
   screens.showPause(false);
 }
-const screens = new Screens(startFlight, resume);
+const screens = new Screens(startFlight, resume, input.isTouch ? 'PAYSAGE RECOMMANDÉ' : '');
 
 // --- procedural universe ---
 const GALAXY_SEED = 0x5eed1234;
@@ -90,6 +92,8 @@ let titleT = 0;
 const loop = new GameLoop(
   (dt) => {
     const fi = input.flight();
+    if (input.isTouch) touch.merge(fi);
+    touch.show(input.isTouch && game.phase === 'flying');
 
     if (game.phase === 'title') {
       titleT += dt;
@@ -155,6 +159,7 @@ const loop = new GameLoop(
     if (system) system.update(dt);
     sky.position.copy(ship.pos);
     input.endFrame();
+    touch.endFrame();
   },
   () => ps1.render(scene, camera),
 );

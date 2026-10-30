@@ -7,9 +7,11 @@
   - 1c : vol 6DOF arcade (tangage/lacet/roulis local, poussée + inertie/expo-drag, vitesse max, cam cockpit/chase toggle C), HUD DOM ambre (SPD/THR/FUEL/HULL/CR/cible/réticule/barre scan + scanlines), écran titre + pause, entrée clavier (event.code, QWERTY/AZERTY) + souris.
   - `npm run build` OK à chaque commit.
 
+- **Étape 2 — Univers procédural** : galaxie 120 systèmes (disc, seed déterministe), étoile 6 types (O..M colorées), 2-8 planètes/système (rocheuse, glacée, gazeuse, océan, lave, terrestre) avec composition %/habitabilité/valeur scientifique, anneaux, coquilles d'atmosphère, 1-2 stations low-poly en rotation, orbites inclinées lentes. Système courant rechargé via `loadSystem`.
+
+- **Étape 3 — Contrôles mobiles** : joystick virtuel (gauche, tangage/lacet), boutons THR+ / THR−, SCAN (maintenu), HYPERSPACE, DOCK (contextuel, masqué), CAM. Multi-touch par identifiant, `touch-action:none` + preventDefault, events souris synthétiques ignorés. Note « paysage » sur l'écran titre.
+
 ## Reste
-- Étape 2 — Système procédural (étoile, planètes, station, orbites).
-- Étape 3 — Contrôles mobiles (joystick virtuel, thrusters, boutons).
 - Étape 4 — Scanner + données de scan.
 - Étape 5 — Amarrage + menu station + marché.
 - Étape 6 — Galaxie + carte galactique + saut hyperspatial.

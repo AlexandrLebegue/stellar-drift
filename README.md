@@ -32,6 +32,7 @@ npm run preview  # servir le build
 | Espace / clic (maintenu) | scanner |
 | M | carte galactique |
 | J | saut hyperspatial |
+| K | amarrage (si en approche) |
 | Entrée | confirmer / démarrer |
 | Échap | pause / retour |
 
