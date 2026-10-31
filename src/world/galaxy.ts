@@ -12,6 +12,22 @@ export interface StarDef {
   radius: number; // u, absolu
 }
 
+export type AnomalyKind = 'trou-noir' | 'trou-de-ver' | 'epave';
+
+export interface AnomalyDef {
+  kind: AnomalyKind;
+  // wormhole only: id of the (distant, deterministic) destination system
+  target?: string;
+}
+
+export function anomalyLabel(kind: AnomalyKind): string {
+  return kind === 'trou-noir'
+    ? 'Trou noir'
+    : kind === 'trou-de-ver'
+      ? 'Trou de ver'
+      : 'Épave extraterrestre';
+}
+
 export interface SystemDef {
   id: string;
   name: string;
@@ -19,6 +35,8 @@ export interface SystemDef {
   z: number;
   star: StarDef;
   seed: number;
+  // rare phenomena (~2 % of systems each), deterministic per galaxy seed
+  anomaly?: AnomalyDef;
 }
 
 // Spectral types with real radius ratios (Sun = 1), plausible colors,
@@ -133,6 +151,35 @@ export class Galaxy {
           radius: Math.round(SUN_RADIUS * rng.range(st.rel[0], st.rel[1]) * 10) / 10,
         };
       }
+    }
+    // rare phenomena: ~2 % of systems each carry one (black hole, wormhole,
+    // alien wreck), rolled on an RNG independent of the main galaxy stream
+    // so existing systems stay stable; guarantee each kind exists once.
+    const arng = new RNG((seed ^ 0xa11ce5) >>> 0);
+    for (const s of this.systems) {
+      if (arng.f() < 0.02) s.anomaly = { kind: 'trou-noir' };
+      else if (arng.f() < 0.02) s.anomaly = { kind: 'trou-de-ver' };
+      else if (arng.f() < 0.02) s.anomaly = { kind: 'epave' };
+    }
+    for (const kind of ['trou-noir', 'trou-de-ver', 'epave'] as AnomalyKind[]) {
+      if (!this.systems.some((s) => s.anomaly?.kind === kind)) {
+        const i = arng.int(0, count - 1);
+        this.systems[i].anomaly = { kind };
+      }
+    }
+    // wormholes bridge to a distant system (>= 12 KLY when possible),
+    // deterministically
+    for (const s of this.systems) {
+      if (s.anomaly?.kind !== 'trou-de-ver') continue;
+      const far = this.systems
+        .filter((c) => c.id !== s.id)
+        .sort(
+          (a, b) =>
+            Math.hypot(b.x - s.x, b.z - s.z) - Math.hypot(a.x - s.x, a.z - s.z),
+        );
+      const pool = far.filter((c) => Math.hypot(c.x - s.x, c.z - s.z) >= 12);
+      const list = pool.length ? pool : far;
+      s.anomaly.target = list[arng.int(0, list.length - 1)].id;
     }
   }
 

@@ -4,6 +4,7 @@ import { SystemDef, StarType, starVisual } from './galaxy';
 import { makePlanetData, makePlanetMesh, PlanetData } from './planet';
 import { makeStationData, makeStationMesh, StationDef } from './station';
 import { makeSun, StarVisual } from './skybox';
+import { makeBlackHole, makeWormhole, makeWreck, updateAnomaly } from './anomaly';
 
 export interface PlanetBody {
   orbit: THREE.Group;
@@ -64,13 +65,21 @@ export class StarSystem {
   outermost = 1000;
   fogNear = 800;
   fogFar = 200000;
+  // rare phenomenon (black hole / wormhole / alien wreck), if any
+  anomaly: THREE.Group | null = null;
+  private anomalyT = 0;
 
   constructor(def: SystemDef, snapRes: THREE.Vector2) {
     this.def = def;
     this.name = def.name;
     const rng = new RNG(def.seed);
     this.starRadius = def.star.radius;
-    this.star = makeSun(snapRes, starVisual(def.star));
+    // a black hole replaces the star entirely
+    if (def.anomaly?.kind === 'trou-noir') {
+      this.star = makeBlackHole(snapRes);
+    } else {
+      this.star = makeSun(snapRes, starVisual(def.star));
+    }
     this.group.add(this.star);
 
     const nPlanets = rng.int(...LAYOUT[def.star.type].planets);
@@ -123,6 +132,22 @@ export class StarSystem {
     this.outermost = Math.max(...orbitRs);
     this.fogNear = Math.max(500, this.starRadius * 1.05 + 100);
     this.fogFar = Math.min(2500000, this.outermost * 2.2 + 20000);
+
+    // rare phenomena: the wormhole sits outside the outermost orbit, the
+    // alien wreck drifts among the inner orbits
+    if (def.anomaly?.kind === 'trou-de-ver') {
+      this.anomaly = makeWormhole(snapRes);
+      const a = rng.range(0, Math.PI * 2);
+      const d = this.outermost * 1.5 + 2000;
+      this.anomaly.position.set(Math.cos(a) * d, rng.range(-800, 800), Math.sin(a) * d);
+      this.group.add(this.anomaly);
+    } else if (def.anomaly?.kind === 'epave') {
+      this.anomaly = makeWreck(snapRes, rng);
+      const a = rng.range(0, Math.PI * 2);
+      const d = Math.max(1500, this.starRadius * 2.5);
+      this.anomaly.position.set(Math.cos(a) * d, rng.range(-500, 500), Math.sin(a) * d);
+      this.group.add(this.anomaly);
+    }
   }
 
   // Safe hyperspace-arrival / spawn distance: well outside the star,
@@ -142,6 +167,10 @@ export class StarSystem {
     }
     const beams = this.star.userData.beams as THREE.Group[] | undefined;
     if (beams) for (const b of beams) b.rotation.y += dt * 2;
+    if (this.anomaly) {
+      this.anomalyT += dt;
+      updateAnomaly(this.anomaly, dt, this.anomalyT);
+    }
   }
 
   dispose() {

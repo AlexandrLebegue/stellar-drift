@@ -23,6 +23,11 @@ export interface PlayerState {
   paint: string;
   pos?: number[];
   quat?: number[];
+  // étape 12 rareties: discovered anomalies (visited / long-range scan)
+  // and one-shot wreck rewards already claimed.
+  visited?: string[];
+  sensed?: string[];
+  loot?: string[];
 }
 
 const SAVE_KEY = 'stellar-drift.save.v1';
@@ -40,6 +45,9 @@ export class Game {
     currentShip: 'prototype',
     modules: {},
     paint: '#b8bec8',
+    visited: [],
+    sensed: [],
+    loot: [],
   };
   systemName = 'Système inconnu';
 
@@ -75,6 +83,9 @@ export class Game {
         if (!this.player.modules) this.player.modules = {};
         if (this.player.fuel === undefined) this.player.fuel = 100;
         if (this.player.hull === undefined) this.player.hull = 100;
+        if (!Array.isArray(this.player.visited)) this.player.visited = [];
+        if (!Array.isArray(this.player.sensed)) this.player.sensed = [];
+        if (!Array.isArray(this.player.loot)) this.player.loot = [];
       }
       return true;
     } catch {

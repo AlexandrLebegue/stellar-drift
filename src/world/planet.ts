@@ -66,6 +66,14 @@ const SPECS: Record<PlanetType, TypeSpec> = {
     baseComp: { fer: 12, silicates: 26, eau: 50, methane: 2, rares: 5, autre: 5 },
     habit: [0.55, 0.95], atmo: [110, 170, 230],
   },
+  // not generated as a planet; placeholder so Record<PlanetType, _> stays total
+  // (the alien wreck is an anomaly, see world/anomaly.ts)
+  epave: {
+    base: [74, 85, 96], accent: [46, 52, 60], banded: false,
+    rMin: 1, rMax: 1,
+    baseComp: { fer: 0, silicates: 0, eau: 0, methane: 0, rares: 100, autre: 0 },
+    habit: [0, 0], atmo: null,
+  },
 };
 
 const TYPES: PlanetType[] = [

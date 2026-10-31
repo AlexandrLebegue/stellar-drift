@@ -6,9 +6,10 @@ import { TouchControls } from './core/touch';
 import { Game } from './core/state';
 import { PS1Pipeline } from './render/ps1';
 import { makeSkybox } from './world/skybox';
-import { Galaxy, SystemDef, jumpCost, starLabel } from './world/galaxy';
+import { Galaxy, SystemDef, jumpCost, starLabel, anomalyLabel } from './world/galaxy';
 import { StarSystem, StationBody } from './world/system';
 import { Scanner, ScanTarget } from './world/scan';
+import { BH_HORIZON, BH_DAMAGE, BH_PULL, WORM_ENTRY } from './world/anomaly';
 import { HyperspaceTunnel } from './render/hyperspace';
 import { Market } from './economy/market';
 import { MusicPlayer } from './audio/music';
@@ -84,6 +85,9 @@ function openMap() {
     (ship.fuel / ship.fuelCap) * 100,
     startJump,
     closeMap,
+    game.player.visited ?? [],
+    game.player.sensed ?? [],
+    () => save(),
   );
   mapUI.show();
 }
@@ -120,6 +124,26 @@ function startJump(dest: SystemDef) {
   save();
 }
 
+// wormhole entry: free teleport to the linked distant system (no fuel)
+function wormholeJump() {
+  const sys = system;
+  if (!sys || !sys.def.anomaly?.target) return;
+  const dest = galaxy.byId(sys.def.anomaly.target);
+  if (!dest || dest.id === sys.def.id) return;
+  if (sys.anomaly) sys.anomaly.visible = false;
+  scene.remove(sys.group);
+  sys.dispose();
+  system = null;
+  ship.group.visible = false;
+  scene.add(tunnel.group);
+  jumpDest = dest;
+  jumpT = 0;
+  game.phase = 'hyperspace';
+  sfx.jump();
+  hud.flash('TROU DE VER — TRAJET SANS CARBURANT…');
+  save();
+}
+
 // --- procedural universe ---
 const GALAXY_SEED = 0x5eed1234;
 const galaxy = new Galaxy(GALAXY_SEED, 120);
@@ -133,6 +157,7 @@ scene.add(ship.group);
 const tunnel = new HyperspaceTunnel(ps1.snapRes);
 
 let system: StarSystem | null = null;
+let heatWarned = false;
 
 function loadSystem(def: SystemDef) {
   if (system) {
@@ -145,6 +170,9 @@ function loadSystem(def: SystemDef) {
   game.player.systemId = def.id;
   scene.fog = new THREE.Fog(0x070910, system.fogNear, system.fogFar);
   heatWarned = false;
+  // visiting a system reveals its anomaly on the map ("???")
+  const visited = game.player.visited ?? (game.player.visited = []);
+  if (!visited.includes(def.id)) visited.push(def.id);
   // safe arrival: well outside the star, facing it
   ship.reset(new THREE.Vector3(0, 0, system.spawnDist));
 }
@@ -335,8 +363,6 @@ function undock() {
 
 window.addEventListener('beforeunload', () => save());
 
-let heatWarned = false;
-
 // Distance to the nearest body surface (star, planets, stations) in u.
 // Drives the supercruise auto-brake.
 function computeClearance(): number {
@@ -396,11 +422,40 @@ const scanner = new Scanner(2500, 3, (rec) => {
   if (system) rec.systemId = system.def.id;
   game.player.scans[rec.planetId] = rec;
   sfx.scanDone();
-  hud.flash('SCAN « ' + rec.name + ' » — ' + rec.price + ' CR (VENDABLE EN STATION)');
+  if (rec.planetId.startsWith('wreck-')) {
+    // alien wreck: one-shot loot + lore (persisted in the save)
+    const sysId = rec.planetId.slice('wreck-'.length);
+    const loot = game.player.loot ?? (game.player.loot = []);
+    if (!loot.includes(sysId)) {
+      loot.push(sysId);
+      game.player.credits += 5000;
+      hud.flash(
+        'ÉPAVE EXTRATERRESTRE — « LE NAVIRE QUI NE REVIENDRA PAS » +5000 CR',
+        6000,
+      );
+    } else {
+      hud.flash('ÉPAVE VIDE — RIEN À RÉCUPÉRER');
+    }
+  } else {
+    hud.flash('SCAN « ' + rec.name + ' » — ' + rec.price + ' CR (VENDABLE EN STATION)');
+  }
   save();
 });
 
 applyLoadout();
+
+// test/inspection hook: `?dbg=1` exposes game internals on window
+if (new URLSearchParams(location.search).has('dbg')) {
+  (window as any).__dbg = {
+    game,
+    galaxy,
+    ship,
+    THREE,
+    get system() {
+      return system;
+    },
+  };
+}
 
 // --- audio: unlock on first interaction, mute persisted ---
 const music = new MusicPlayer([
@@ -507,17 +562,43 @@ const loop = new GameLoop(
         if (system) {
           const dStar = ship.pos.length();
           const R = system.starRadius;
-          if (dStar < R * 1.25) {
-            const depth = 1 - dStar / (R * 1.25);
-            ship.hull = Math.max(0, ship.hull - (6 + 50 * depth * depth) * dt);
-            if (!heatWarned) {
-              heatWarned = true;
-              hud.flash('ATTENTION — CHALEUR STELLAIRE, ÉCARTER-VOUS');
+          if (system.def.anomaly?.kind === 'trou-noir') {
+            // black hole: gravity well, tidal damage, event horizon
+            if (dStar < BH_PULL) {
+              const a = Math.min(4000, 80 * Math.pow(BH_PULL / Math.max(1, dStar), 1.5));
+              tmpB.copy(ship.pos).multiplyScalar(-1 / dStar);
+              ship.vel.addScaledVector(tmpB, a * dt);
             }
-          } else if (heatWarned) {
-            heatWarned = false;
+            if (dStar < BH_DAMAGE) {
+              const depth = 1 - dStar / BH_DAMAGE;
+              ship.hull = Math.max(0, ship.hull - (6 + 50 * depth * depth) * dt);
+              if (!heatWarned) {
+                heatWarned = true;
+                hud.flash('ATTENTION — TROU NOIR : MARÉE LÉTALE, ÉCARTER-VOUS');
+              }
+            } else if (heatWarned) {
+              heatWarned = false;
+            }
+            if (dStar < BH_HORIZON) crashShip('ASPIRÉ PAR LE TROU NOIR');
+          } else {
+            if (dStar < R * 1.25) {
+              const depth = 1 - dStar / (R * 1.25);
+              ship.hull = Math.max(0, ship.hull - (6 + 50 * depth * depth) * dt);
+              if (!heatWarned) {
+                heatWarned = true;
+                hud.flash('ATTENTION — CHALEUR STELLAIRE, ÉCARTER-VOUS');
+              }
+            } else if (heatWarned) {
+              heatWarned = false;
+            }
+            if (dStar < R) crashShip('DÉTRUIT PAR LA CHALEUR DE L\'ÉTOILE');
           }
-          if (dStar < R) crashShip('DÉTRUIT PAR LA CHALEUR DE L\'ÉTOILE');
+
+          // wormhole: entering the portal teleports to the linked system
+          if (system.anomaly && system.def.anomaly?.kind === 'trou-de-ver' && system.anomaly.visible) {
+            system.anomaly.getWorldPosition(tmpA);
+            if (tmpA.distanceTo(ship.pos) < WORM_ENTRY) wormholeJump();
+          }
         }
 
         if (fi.scan) sfx.scanTick(scanner.progress);
@@ -538,6 +619,23 @@ const loop = new GameLoop(
               position: p.mesh.getWorldPosition(posPool[i++]),
             });
           }
+          // alien wreck: scannable, one-shot loot
+          if (
+            system.anomaly &&
+            system.def.anomaly?.kind === 'epave' &&
+            !(game.player.loot ?? []).includes(system.def.id)
+          ) {
+            system.anomaly.getWorldPosition(posPool[i++]);
+            targets.push({
+              id: 'wreck-' + system.def.id,
+              name: 'ÉPAVE EXTRATERRESTRE',
+              type: 'epave',
+              composition: { fer: 0, silicates: 0, eau: 0, methane: 0, rares: 100, autre: 0 },
+              habitability: 0,
+              scienceValue: 40,
+              position: posPool[i - 1],
+            });
+          }
           scanner.update(dt, fi.scan, ship.pos, tmpF, targets);
         }
         hud.setScan(fi.scan ? scanner.progress : null);
@@ -554,6 +652,19 @@ const loop = new GameLoop(
             if (tmpA.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
               tName = p.data.name.toUpperCase() + (game.player.scans[p.data.id] ? ' [SCANNÉE]' : '');
               tDist = d;
+            }
+          }
+          if (system.anomaly && system.def.anomaly?.kind === 'epave') {
+            system.anomaly.getWorldPosition(tmpA).sub(ship.pos);
+            const d = tmpA.length();
+            if (d > 1 && d < 40000) {
+              tmpA.divideScalar(d);
+              if (tmpA.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
+                tName =
+                  'ÉPAVE EXTRATERRESTRE' +
+                  ((game.player.loot ?? []).includes(system.def.id) ? ' [VIDÉE]' : '');
+                tDist = d;
+              }
             }
           }
         }
@@ -593,7 +704,11 @@ const loop = new GameLoop(
 
         hud.update({
           system: game.systemName,
-          starType: system ? 'ÉTOILE ' + starLabel(system.def.star.type) : undefined,
+          starType: system
+            ? system.def.anomaly
+              ? anomalyLabel(system.def.anomaly.kind).toUpperCase()
+              : 'ÉTOILE ' + starLabel(system.def.star.type)
+            : undefined,
           credits: game.player.credits,
           speed: ship.vel.length(),
           throttle: ship.throttle,

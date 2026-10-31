@@ -31,6 +31,7 @@ npm run preview  # servir le build
 | C | caméra cockpit / 3e personne |
 | Espace / clic (maintenu) | scanner |
 | M | carte galactique |
+| F | supercroisière (vitesse ×65, auto-freinée près des corps) |
 | J | saut hyperspatial |
 | K | amarrage (si en approche) |
 | Entrée | confirmer / démarrer |
@@ -39,7 +40,7 @@ npm run preview  # servir le build
 ### Mobile (tactile)
 - Joystick virtuel (gauche) : tangage / lacet.
 - Thrusters (droite) : poussée + / −.
-- Boutons : HYPERSPACE, SCAN (maintenu), DOCK (contextuel).
+- Boutons : HYPERSPACE, SCAN (maintenu), SUPER-CRUISE, DOCK (contextuel).
 
 ## Sauvegarde
 
@@ -56,6 +57,26 @@ avec fondu, bouton SON: ON/OFF en bas à droite, réglage mémorisé) + bruitage
 procéduraux WebAudio (moteur, scan, saut, amarrage, interface). La musique
 démare après la première interaction (politique autoplay des navigateurs).
 Crédits et licences : `CREDITS.md`.
+
+## Univers (échelle réaliste)
+
+- **Échelle** : 1 u ≈ 637 km — Terre = 10 u, Soleil (G) = 1 090 u. Les
+  planètes gardent leurs vrais rapports (Jupiter ≈ 10× la Terre) ; les
+  orbites sont compressées : l'orbite intérieure fait ~3× le rayon de
+  l'étoile (qui y paraît énorme), les orbites extérieures 10–50× (qui y
+  paraît minuscule). Le mode croisière / supercroisière (F, ×65)
+  auto-freine à l'approche des corps ; l'arrivée de saut se fait à
+  distance sûre, face à l'étoile.
+- **11 types d'étoiles**, en français sur la carte et le HUD : naine
+  brune, naines rouge / orange / jaune (type Soleil) / F / A / B, géante
+  bleue (O), géante rouge (sans planètes intérieures), naine blanche,
+  pulsar (faisceaux balayants).
+- **Raretés** (~2 % des systèmes chacune, déterministes) : **trou noir**
+  (disque d'accrétion, puits de gravité, mort par marées trop près),
+  **trou de ver** (saut gratuit vers un système lointain), **épave
+  extraterrestre** (scan = lore + 5 000 CR, une seule fois). Les systèmes
+  à rareté déjà visités ou détectés par un « SCAN LOINTAIN » (carte,
+  portée 10 KLY) sont marqués « ??? » sur la carte galactique.
 
 ## Structure du code
 - `src/core` — boucle, input, état, PRNG, sauvegarde

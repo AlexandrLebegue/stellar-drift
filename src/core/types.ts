@@ -6,7 +6,8 @@ export type PlanetType =
   | 'gazeuse'
   | 'ocean'
   | 'lave'
-  | 'terrestre';
+  | 'terrestre'
+  | 'epave';
 
 export interface Composition {
   fer: number;

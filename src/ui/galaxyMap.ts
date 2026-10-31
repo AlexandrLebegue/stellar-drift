@@ -22,6 +22,9 @@ export class GalaxyMapUI {
   private onBack: () => void;
   private jumpBtn: HTMLButtonElement;
 
+  private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastScanMsg: string | null = null;
+
   constructor(
     private galaxy: Galaxy,
     currentId: string,
@@ -29,6 +32,9 @@ export class GalaxyMapUI {
     private fuel: number,
     onJump: (def: SystemDef) => void,
     onBack: () => void,
+    private visited: string[],
+    private sensed: string[],
+    private onSensed: () => void,
   ) {
     this.onJump = onJump;
     this.onBack = onBack;
@@ -42,6 +48,7 @@ export class GalaxyMapUI {
       '  <div class="gm-sel" id="gm-sel">SÉLECTIONNEZ UN SYSTÈME</div>',
       '  <div class="gm-btns">',
       '    <button id="gm-jump" class="tbtninline">SAUTER</button>',
+      '    <button id="gm-scan" class="tbtninline">SCAN LOINTAIN</button>',
       '    <button id="gm-back" class="tbtninline">RETOUR</button>',
       '  </div>',
       '</div>',
@@ -67,6 +74,40 @@ export class GalaxyMapUI {
     back.addEventListener('touchstart', (e) => {
       e.preventDefault();
       this.onBack();
+    }, { passive: false });
+
+    // long-range scan: reveals anomalies within 10 KLY of the current system
+    const scanBtn = this.el.querySelector('#gm-scan') as HTMLButtonElement;
+    const doScan = () => {
+      if (this.scanTimer !== null) return;
+      scanBtn.disabled = true;
+      scanBtn.textContent = 'SCAN… 1.5 s';
+      this.scanTimer = setTimeout(() => {
+        this.scanTimer = null;
+        scanBtn.disabled = false;
+        scanBtn.textContent = 'SCAN LOINTAIN';
+        const cur =
+          this.galaxy.systems.find((s) => s.id === this.currentId) ?? this.galaxy.systems[0];
+        let n = 0;
+        for (const s of this.galaxy.systems) {
+          if (!s.anomaly || this.sensed.includes(s.id)) continue;
+          if (Math.hypot(s.x - cur.x, s.z - cur.z) <= 10) {
+            this.sensed.push(s.id);
+            n++;
+          }
+        }
+        this.lastScanMsg =
+          n > 0
+            ? 'SCAN LOINTAIN : ' + n + ' ANOMALIE(S) DÉTECTÉE(S)'
+            : 'SCAN LOINTAIN : AUCUNE ANOMALIE DANS LES 10 KLY';
+        this.onSensed();
+        this.render();
+      }, 1500);
+    };
+    scanBtn.addEventListener('click', doScan);
+    scanBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      doScan();
     }, { passive: false });
 
     const pick = (clientX: number, clientY: number) => {
@@ -119,6 +160,10 @@ export class GalaxyMapUI {
   }
 
   dispose() {
+    if (this.scanTimer !== null) {
+      clearTimeout(this.scanTimer);
+      this.scanTimer = null;
+    }
     this.el.remove();
   }
 
@@ -173,6 +218,15 @@ export class GalaxyMapUI {
         c.arc(sx, sy, 2, 0, Math.PI * 2);
         c.fill();
       }
+      // discovered anomalies get a special "???" marker (after visit or
+      // long-range scan)
+      if (s.anomaly && (this.visited.includes(s.id) || this.sensed.includes(s.id))) {
+        c.strokeStyle = 'rgba(232,240,255,0.9)';
+        c.strokeRect(sx - 6, sy - 6, 12, 12);
+        c.fillStyle = '#e8f0ff';
+        c.font = '10px monospace';
+        c.fillText('???', sx + 9, sy - 4);
+      }
     }
 
     // selection info + jump button state
@@ -193,7 +247,7 @@ export class GalaxyMapUI {
         ? 'SAUTER (' + cost.toFixed(1) + '% FUEL)'
         : 'HORS PORTEE / FUEL INSUFFISANT';
     } else {
-      sel.textContent = 'SÉLECTIONNEZ UN SYSTÈME EN PORTÉE';
+      sel.textContent = this.lastScanMsg ?? 'SÉLECTIONNEZ UN SYSTÈME EN PORTÉE';
       jump.disabled = true;
       jump.textContent = 'SAUTER';
     }
