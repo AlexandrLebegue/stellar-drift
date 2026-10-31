@@ -59,6 +59,18 @@
 #hud-reticle i:nth-child(3) { left: 0; top: 50%; width: 8px; height: 2px; transform: translateY(-50%); }
 #hud-reticle i:nth-child(4) { right: 0; top: 50%; width: 8px; height: 2px; transform: translateY(-50%); }
 
+#hud-mode {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  display: none;
+  text-shadow: 0 0 6px rgba(120, 200, 255, 0.7);
+  color: #9fd8ff;
+}
+
 #hud-scanbar {
   position: absolute;
   left: 50%;
@@ -151,6 +163,7 @@
 }
 .tbtn.small { min-width: 64px; padding: 8px 10px; font-size: 11px; }
 #btn-jump { bottom: 210px; }
+#btn-super { bottom: 270px; }
 #btn-scan { bottom: 150px; }
 #btn-up { bottom: 96px; right: 110px; }
 #btn-down { bottom: 96px; }

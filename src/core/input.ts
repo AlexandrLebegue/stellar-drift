@@ -13,6 +13,7 @@ export interface FlightInput {
   confirm: boolean;
   back: boolean;
   dock: boolean;
+  supercruise: boolean;
 }
 
 export class Input {
@@ -84,6 +85,7 @@ export class Input {
       confirm: this.pressed('Enter'),
       back: this.pressed('Escape'),
       dock: this.pressed('KeyK'),
+      supercruise: this.pressed('KeyF'),
     };
   }
 }

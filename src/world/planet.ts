@@ -32,37 +32,37 @@ interface TypeSpec {
 const SPECS: Record<PlanetType, TypeSpec> = {
   rocheuse: {
     base: [96, 84, 70], accent: [52, 44, 38], banded: false,
-    rMin: 6, rMax: 16,
+    rMin: 3, rMax: 8,
     baseComp: { fer: 32, silicates: 44, eau: 1, methane: 1, rares: 6, autre: 16 },
     habit: [0.0, 0.15], atmo: null,
   },
   glacee: {
     base: [205, 220, 235], accent: [130, 160, 200], banded: false,
-    rMin: 7, rMax: 18,
+    rMin: 8, rMax: 32,
     baseComp: { fer: 4, silicates: 12, eau: 58, methane: 18, rares: 3, autre: 5 },
     habit: [0.0, 0.1], atmo: [170, 200, 235],
   },
   gazeuse: {
     base: [195, 155, 110], accent: [110, 82, 62], banded: true,
-    rMin: 26, rMax: 48,
+    rMin: 95, rMax: 130,
     baseComp: { fer: 6, silicates: 8, eau: 10, methane: 52, rares: 14, autre: 10 },
     habit: [0.0, 0.02], atmo: [210, 180, 130],
   },
   ocean: {
     base: [42, 92, 160], accent: [130, 180, 215], banded: false,
-    rMin: 9, rMax: 18,
+    rMin: 9, rMax: 14,
     baseComp: { fer: 5, silicates: 10, eau: 76, methane: 3, rares: 4, autre: 2 },
     habit: [0.25, 0.7], atmo: [120, 180, 230],
   },
   lave: {
     base: [52, 34, 30], accent: [210, 92, 28], banded: false,
-    rMin: 7, rMax: 14,
+    rMin: 4, rMax: 7,
     baseComp: { fer: 56, silicates: 28, eau: 1, methane: 2, rares: 9, autre: 4 },
     habit: [0.0, 0.03], atmo: [200, 110, 60],
   },
   terrestre: {
     base: [46, 116, 64], accent: [140, 118, 82], banded: false,
-    rMin: 10, rMax: 16,
+    rMin: 9, rMax: 12,
     baseComp: { fer: 12, silicates: 26, eau: 50, methane: 2, rares: 5, autre: 5 },
     habit: [0.55, 0.95], atmo: [110, 170, 230],
   },
@@ -88,6 +88,8 @@ function jitterComp(rng: RNG, base: Composition): Composition {
 
 // Deterministic per (system, index): ids stay stable across re-loads so
 // saved scan data keeps matching the regenerated planet.
+// Radii use real ratios with Earth = 10 u: rocky 3-8, icy 8-32,
+// ocean 9-14, terrestrial 9-12, gas giants 95-130 (Jupiter ≈ 112).
 export function makePlanetData(
   rng: RNG,
   systemName: string,
@@ -100,7 +102,7 @@ export function makePlanetData(
   const radius = Math.round(rng.range(spec.rMin, spec.rMax) * 10) / 10;
   const habitability = Math.round(rng.range(spec.habit[0], spec.habit[1]) * 100) / 100;
   const scienceValue = Math.round(
-    (400 + composition.rares * 120 + radius * 15 + rng.range(0, 600)) * (habitability > 0.4 ? 1.5 : 1),
+    (400 + composition.rares * 120 + radius * 8 + rng.range(0, 600)) * (habitability > 0.4 ? 1.5 : 1),
   );
   return {
     id,

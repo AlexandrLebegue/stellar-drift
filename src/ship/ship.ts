@@ -85,7 +85,7 @@ export class Ship {
     this.turnMult = d.turn * (1 + 0.1 * l('moteur'));
     this.hold = d.hold + 8 * l('soute');
     this.jumpRange = d.jumpRange + 2 * l('fsd');
-    this.scanRange = d.scanRange + 300 * l('scanner');
+    this.scanRange = d.scanRange + 1000 * l('scanner');
     this.scanTime = Math.max(1, d.scanTime - 0.4 * l('scanner'));
     this.fuelCap = d.fuelCap + 50 * l('reservoir');
     this.hullMax = d.hullMax + 50 * l('coque');
@@ -96,6 +96,16 @@ export class Ship {
   toggleCam() {
     this.camMode = this.camMode === 'chase' ? 'cockpit' : 'chase';
     this.group.visible = this.camMode !== 'cockpit';
+  }
+
+  // Supercruise: max speed/thrust grow with the distance to the nearest
+  // body (clearance); near a planet or station the ship auto-brakes back
+  // to plain cruise speed.
+  supercruise = false;
+
+  toggleSupercruise(): boolean {
+    this.supercruise = !this.supercruise;
+    return this.supercruise;
   }
 
   // reset to a fresh spawn (used on system load); optional saved orientation
@@ -122,7 +132,7 @@ export class Ship {
     }
   }
 
-  update(dt: number, fi: FlightInput) {
+  update(dt: number, fi: FlightInput, clearance = 1e9) {
     // local-space attitude change (YXZ: yaw, pitch, roll)
     this.tmpE.set(
       fi.pitch * 1.5 * this.turnMult * dt,
@@ -136,19 +146,25 @@ export class Ship {
     this.fwd.set(0, 0, -1).applyQuaternion(this.quat);
     this.up.set(0, 1, 0).applyQuaternion(this.quat);
 
-    // thrust along forward, light inertial drag
-    this.vel.addScaledVector(this.fwd, this.throttle * this.maxThrust * dt);
-    this.vel.multiplyScalar(Math.exp(-0.45 * dt));
+    // supercruise ramp 0..1 over 1200→4000 u of clearance
+    const s = this.supercruise ? Math.min(1, Math.max(0, (clearance - 1200) / 2800)) : 0;
+    const vMax = this.maxSpeed * (1 + 64 * s);
+    const thrust = this.maxThrust * (1 + 128 * s);
+
+    // thrust along forward, light inertial drag (auto-brake near bodies)
+    this.vel.addScaledVector(this.fwd, this.throttle * thrust * dt);
+    const drag = this.supercruise ? 0.45 + 18 * (1 - s) : 0.45;
+    this.vel.multiplyScalar(Math.exp(-drag * dt));
     const sp = this.vel.length();
-    if (sp > this.maxSpeed) this.vel.multiplyScalar(this.maxSpeed / sp);
+    if (sp > vMax) this.vel.multiplyScalar(vMax / sp);
     this.pos.addScaledVector(this.vel, dt);
 
     this.group.position.copy(this.pos);
     this.group.quaternion.copy(this.quat);
     if (this.model) {
       const glow = this.model.userData.glow as THREE.Sprite;
-      const s = 0.4 + this.throttle * 1.6;
-      glow.scale.set(s, s, 1);
+      const gs = 0.4 + this.throttle * 1.6 + (this.supercruise ? 0.9 : 0);
+      glow.scale.set(gs, gs, 1);
     }
 
     this.updateCamera(dt);

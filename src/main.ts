@@ -30,8 +30,10 @@ const ps1 = new PS1Pipeline(canvas);
 ps1.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x070910, 500, 12000);
-const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 60000);
+scene.fog = new THREE.Fog(0x070910, 800, 200000);
+// far plane 4 M u + logarithmic depth (renderer flag): no z-fighting
+// across 100 000+ u systems.
+const camera = new THREE.PerspectiveCamera(62, 1, 0.5, 4000000);
 
 const game = new Game();
 game.load();
@@ -141,7 +143,10 @@ function loadSystem(def: SystemDef) {
   scene.add(system.group);
   game.systemName = def.name;
   game.player.systemId = def.id;
-  ship.reset(new THREE.Vector3(0, 0, 520));
+  scene.fog = new THREE.Fog(0x070910, system.fogNear, system.fogFar);
+  heatWarned = false;
+  // safe arrival: well outside the star, facing it
+  ship.reset(new THREE.Vector3(0, 0, system.spawnDist));
 }
 
 loadSystem(galaxy.byId(game.player.systemId) ?? galaxy.systems[0]);
@@ -213,7 +218,13 @@ function applyLoadout() {
         )
         .normalize();
     }
-    if (ship.pos.length() > 9000) ship.pos.set(0, 0, 520);
+    // migration: old saves used a compact scale — a stored position can now
+    // be inside the (much bigger) star or far outside the system.
+    const d = ship.pos.length();
+    if (d < system.starRadius * 1.35 || d > system.outermost * 2.5 || d < 60) {
+      const dir = d > 1 ? ship.pos.clone().normalize() : new THREE.Vector3(0, 0, 1);
+      ship.pos.copy(dir).multiplyScalar(system.spawnDist);
+    }
     ship.updateCamera(0.1);
   }
   reconfigureScanner();
@@ -310,11 +321,11 @@ function undock() {
   const center = dockTarget.mesh.getWorldPosition(posPool[10]);
   const padPos = dockTarget.pad.getWorldPosition(posPool[11]);
   const dir = tmpA.copy(padPos).sub(center).normalize();
-  ship.pos.copy(padPos).addScaledVector(dir, 30);
-  ship.vel.copy(dir).multiplyScalar(10);
+  ship.pos.copy(padPos).addScaledVector(dir, 120);
+  ship.vel.copy(dir).multiplyScalar(15);
   ship.quat.copy(dockTarget.mesh.getWorldQuaternion(tmpQ));
   ship.group.visible = true;
-  ship.cameraPos.copy(ship.pos).addScaledVector(dir, 20);
+  ship.cameraPos.copy(ship.pos).addScaledVector(dir, 60);
   dockTarget = null;
   if (stationMenu) stationMenu.hide();
   game.phase = 'flying';
@@ -323,6 +334,37 @@ function undock() {
 }
 
 window.addEventListener('beforeunload', () => save());
+
+let heatWarned = false;
+
+// Distance to the nearest body surface (star, planets, stations) in u.
+// Drives the supercruise auto-brake.
+function computeClearance(): number {
+  if (!system) return 1e9;
+  let best = ship.pos.length() - system.starRadius;
+  for (const p of system.planets) {
+    p.mesh.getWorldPosition(tmpA);
+    best = Math.min(best, tmpA.distanceTo(ship.pos) - p.data.radius);
+  }
+  for (const s of system.stations) {
+    s.mesh.getWorldPosition(tmpA);
+    best = Math.min(best, tmpA.distanceTo(ship.pos) - 160);
+  }
+  return Math.max(0, best);
+}
+
+// Ship destroyed (swallowed by the star): respawn at safe distance,
+// hull restored, credits penalized.
+function crashShip(reason: string) {
+  if (!system) return;
+  game.player.credits = Math.floor(game.player.credits * 0.85);
+  sfx.crash();
+  hud.flash(reason + ' — RÉCUPÉRATION, -15% CR');
+  ship.reset(new THREE.Vector3(0, 0, system.spawnDist));
+  ship.hull = ship.hullMax;
+  heatWarned = false;
+  save();
+}
 
 function resize() {
   const w = window.innerWidth;
@@ -350,7 +392,7 @@ const tmpQ = new THREE.Quaternion();
 const posPool: THREE.Vector3[] = Array.from({ length: 12 }, () => new THREE.Vector3());
 let titleT = 0;
 
-const scanner = new Scanner(900, 3, (rec) => {
+const scanner = new Scanner(2500, 3, (rec) => {
   if (system) rec.systemId = system.def.id;
   game.player.scans[rec.planetId] = rec;
   sfx.scanDone();
@@ -413,7 +455,7 @@ function findStation(): { st: StationBody; pad: THREE.Vector3; d: number } | nul
     const st = system.stations[i];
     st.pad.getWorldPosition(posPool[i]);
     const d = posPool[i].distanceTo(ship.pos);
-    if (d < 260 && d < bestD) {
+    if (d < 500 && d < bestD) {
       best = st;
       bestD = d;
       bi = i;
@@ -432,10 +474,11 @@ const loop = new GameLoop(
     if (game.phase === 'title') {
       titleT += dt;
       if (fi.confirm) startFlight();
+      const r = Math.min(90000, Math.max(5000, (system?.starRadius ?? 1000) * 14));
       camera.position.set(
-        Math.sin(titleT * 0.07) * 500,
-        120 + Math.sin(titleT * 0.11) * 50,
-        Math.cos(titleT * 0.07) * 500,
+        Math.sin(titleT * 0.07) * r,
+        r * 0.2 + Math.sin(titleT * 0.11) * r * 0.08,
+        Math.cos(titleT * 0.07) * r,
       );
       camera.lookAt(0, 0, 0);
     } else if (game.phase === 'flying') {
@@ -450,10 +493,32 @@ const loop = new GameLoop(
       }
       if (game.phase === 'flying' && (fi.map || fi.jump)) openMap();
       if (game.phase === 'flying') {
+        if (fi.supercruise) {
+          const on = ship.toggleSupercruise();
+          sfx.ui();
+          hud.flash(on ? 'SUPER-CRUISE — VITESSE ×65 LOIN DES CORPS' : 'MODE CRUISE — VITESSE NORMALE');
+        }
         ship.setThrottle(fi.throttleIn, dt);
-        ship.update(dt, fi);
+        ship.update(dt, fi, computeClearance());
         ship.getCamera(camera);
         ship.forward(tmpF);
+
+        // star exclusion zone: heat damage near the surface, death inside
+        if (system) {
+          const dStar = ship.pos.length();
+          const R = system.starRadius;
+          if (dStar < R * 1.25) {
+            const depth = 1 - dStar / (R * 1.25);
+            ship.hull = Math.max(0, ship.hull - (6 + 50 * depth * depth) * dt);
+            if (!heatWarned) {
+              heatWarned = true;
+              hud.flash('ATTENTION — CHALEUR STELLAIRE, ÉCARTER-VOUS');
+            }
+          } else if (heatWarned) {
+            heatWarned = false;
+          }
+          if (dStar < R) crashShip('DÉTRUIT PAR LA CHALEUR DE L\'ÉTOILE');
+        }
 
         if (fi.scan) sfx.scanTick(scanner.progress);
 
@@ -484,7 +549,7 @@ const loop = new GameLoop(
           for (const p of system.planets) {
             p.mesh.getWorldPosition(tmpA).sub(ship.pos);
             const d = tmpA.length();
-            if (d > 4000) continue;
+            if (d > 40000) continue;
             tmpA.divideScalar(d);
             if (tmpA.dot(tmpF) > 0.995 && (tDist === undefined || d < tDist)) {
               tName = p.data.name.toUpperCase() + (game.player.scans[p.data.id] ? ' [SCANNÉE]' : '');
@@ -528,6 +593,7 @@ const loop = new GameLoop(
 
         hud.update({
           system: game.systemName,
+          starType: system ? 'ÉTOILE ' + system.def.star.type : undefined,
           credits: game.player.credits,
           speed: ship.vel.length(),
           throttle: ship.throttle,
@@ -535,6 +601,7 @@ const loop = new GameLoop(
           hull: (ship.hull / ship.hullMax) * 100,
           targetName: tName,
           targetDist: tDist,
+          supercruise: ship.supercruise,
         });
       }
     } else if (game.phase === 'docking') {
@@ -569,9 +636,9 @@ const loop = new GameLoop(
         dockOrbitT += dt * 0.15;
         const c = dockTarget.mesh.getWorldPosition(posPool[10]);
         camera.position.set(
-          c.x + Math.cos(dockOrbitT) * 130,
-          c.y + 45,
-          c.z + Math.sin(dockOrbitT) * 130,
+          c.x + Math.cos(dockOrbitT) * 320,
+          c.y + 110,
+          c.z + Math.sin(dockOrbitT) * 320,
         );
         camera.lookAt(c);
       }

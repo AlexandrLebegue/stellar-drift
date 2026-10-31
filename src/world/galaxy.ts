@@ -1,11 +1,15 @@
 import { RNG } from '../core/prng';
+import type { StarVisual } from './skybox';
 
 export type StarType = 'B' | 'A' | 'F' | 'G' | 'K' | 'M';
+
+// 1 u ≈ 637 km : rayon Terre = 10 u, rayon Soleil (G) = 109 R⊕ ≈ 1090 u.
+export const SUN_RADIUS = 1090;
 
 export interface StarDef {
   type: StarType;
   color: number;
-  radius: number;
+  radius: number; // u, absolu
 }
 
 export interface SystemDef {
@@ -17,14 +21,24 @@ export interface SystemDef {
   seed: number;
 }
 
-const STAR_TABLE: Record<StarType, { color: number; radius: number }> = {
-  B: { color: 0x9db4ff, radius: 1.3 },
-  A: { color: 0xeef2ff, radius: 1.15 },
-  F: { color: 0xf6f0dc, radius: 1.05 },
-  G: { color: 0xffdf9e, radius: 1.0 },
-  K: { color: 0xffb56b, radius: 0.95 },
-  M: { color: 0xff8a5c, radius: 0.85 },
+const STAR_TABLE: Record<StarType, { color: number; rel: [number, number] }> = {
+  B: { color: 0x9db4ff, rel: [2.4, 3.0] },
+  A: { color: 0xeef2ff, rel: [1.6, 1.9] },
+  F: { color: 0xf6f0dc, rel: [1.15, 1.3] },
+  G: { color: 0xffdf9e, rel: [0.95, 1.05] },
+  K: { color: 0xffb56b, rel: [0.65, 0.8] },
+  M: { color: 0xff8a5c, rel: [0.25, 0.35] },
 };
+
+// Visual parameters for a star (color/glow/light) derived from its type.
+export function starVisual(star: StarDef): StarVisual {
+  return {
+    color: star.color,
+    radius: star.radius,
+    glow: [255, 216, 150],
+    light: 2.5,
+  };
+}
 
 const SYL_A = ['ka', 'vel', 'or', 'tha', 'ru', 'en', 'do', 'ma', 'ri', 'xa', 'no', 'ti', 'sa', 'lu', 'vo', 'ba', 'ne', 'ze'];
 const SYL_B = ['ar', 'eth', 'un', 'os', 'ix', 'or', 'an', 'il', 'en', 'ur', 'ak', 'os', 'ir', 'am', 'on', 'et', 'ys', 'al'];
@@ -61,7 +75,11 @@ export class Galaxy {
         name: genName(rng),
         x: Math.cos(a) * d,
         z: Math.sin(a) * d,
-        star: { type: t, color: st.color, radius: st.radius },
+        star: {
+          type: t,
+          color: st.color,
+          radius: Math.round(SUN_RADIUS * rng.range(st.rel[0], st.rel[1]) * 10) / 10,
+        },
         seed: (seed ^ Math.imul(i + 13, 0x9e3779b9)) >>> 0,
       });
     }

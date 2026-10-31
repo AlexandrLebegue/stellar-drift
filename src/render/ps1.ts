@@ -63,6 +63,7 @@ export class PS1Pipeline {
       canvas,
       antialias: false,
       powerPreference: 'high-performance',
+      logarithmicDepthBuffer: true,
     });
     this.renderer.setPixelRatio(1);
 

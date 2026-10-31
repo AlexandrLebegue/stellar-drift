@@ -1,5 +1,6 @@
 export interface HudSnapshot {
   system: string;
+  starType?: string;
   credits: number;
   speed: number;
   throttle: number;
@@ -7,6 +8,7 @@ export interface HudSnapshot {
   hull: number;
   targetName?: string;
   targetDist?: number;
+  supercruise?: boolean;
 }
 
 // DOM-based retro-futurist HUD (amber on dark, monospace, scanlines).
@@ -20,6 +22,7 @@ export class HUD {
     this.root.innerHTML = [
       '<div class="panel tl">',
       '  <div class="lbl" id="hud-syslbl">SYSTÈME</div><div id="hud-sys">—</div>',
+      '  <div class="lbl" id="hud-star">—</div>',
       '  <div id="hud-cred">CR 0</div>',
       '</div>',
       '<div class="panel tr">',
@@ -32,16 +35,18 @@ export class HUD {
       '  <div>HULL <span class="bar"><i id="hud-hull"></i></span></div>',
       '</div>',
       '<div id="hud-reticle"><i></i><i></i><i></i><i></i></div>',
+      '<div id="hud-mode">SUPER-CRUISE</div>',
       '<div id="hud-scanbar"><i></i></div>',
       '<div id="hud-msg"></div>',
       '<button id="hud-mute" class="tbtninline">SON: ON</button>',
     ].join('\n');
     for (const id of [
-      'hud-sys', 'hud-cred', 'hud-tgt', 'hud-dist',
+      'hud-sys', 'hud-star', 'hud-cred', 'hud-tgt', 'hud-dist',
       'hud-spd', 'hud-thr', 'hud-fuel', 'hud-hull', 'hud-msg',
     ]) {
       this.el[id] = document.getElementById(id)!;
     }
+    this.el['hud-mode'] = document.getElementById('hud-mode')!;
   }
 
   show(on: boolean) {
@@ -50,6 +55,7 @@ export class HUD {
 
   update(s: HudSnapshot) {
     this.el['hud-sys'].textContent = s.system;
+    this.el['hud-star'].textContent = s.starType ?? '';
     this.el['hud-cred'].textContent = 'CR ' + Math.floor(s.credits).toString().padStart(6, '0');
     this.el['hud-spd'].textContent = Math.round(s.speed).toString().padStart(3, '0');
     this.el['hud-thr'].textContent = Math.round(s.throttle * 100).toString().padStart(2, '0');
@@ -58,6 +64,7 @@ export class HUD {
     this.el['hud-tgt'].textContent = s.targetName ?? '—';
     this.el['hud-dist'].textContent =
       s.targetDist !== undefined ? Math.round(s.targetDist).toString().padStart(5, '0') + ' u' : '—';
+    this.el['hud-mode'].style.display = s.supercruise ? 'block' : 'none';
   }
 
   // scan progress 0..1, or null to hide

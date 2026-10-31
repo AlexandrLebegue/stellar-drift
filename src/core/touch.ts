@@ -15,6 +15,7 @@ export class TouchControls {
   private thrustDown = false;
   private scanHeld = false;
   private jumpEdge = false;
+  private superEdge = false;
   private camEdge = false;
   private dockEdge = false;
   private dockVisible = false;
@@ -25,6 +26,7 @@ export class TouchControls {
     this.root.innerHTML = [
       '<div id="joy-base"><div id="joy-knob"></div></div>',
       '<div class="tbtn" id="btn-jump">HYPERSPACE</div>',
+      '<div class="tbtn" id="btn-super">S-CRUISE</div>',
       '<div class="tbtn" id="btn-scan">SCAN</div>',
       '<div class="tbtn small" id="btn-up">THR+</div>',
       '<div class="tbtn small" id="btn-down">THR-</div>',
@@ -80,6 +82,7 @@ export class TouchControls {
     this.bindHold('btn-down', 'down');
     this.bindHold('btn-scan', 'scan');
     this.bindEdge('btn-jump', 'jump');
+    this.bindEdge('btn-super', 'super');
     this.bindEdge('btn-cam', 'cam');
     this.bindEdge('btn-dock', 'dock');
     this.setDockVisible(false);
@@ -108,7 +111,7 @@ export class TouchControls {
     el.addEventListener('touchcancel', release);
   }
 
-  private bindEdge(id: string, which: 'jump' | 'cam' | 'dock') {
+  private bindEdge(id: string, which: 'jump' | 'super' | 'cam' | 'dock') {
     const el = document.getElementById(id)!;
     el.addEventListener(
       'touchstart',
@@ -116,6 +119,7 @@ export class TouchControls {
         e.preventDefault();
         e.stopPropagation();
         if (which === 'jump') this.jumpEdge = true;
+        else if (which === 'super') this.superEdge = true;
         else if (which === 'cam') this.camEdge = true;
         else this.dockEdge = true;
       },
@@ -164,6 +168,7 @@ export class TouchControls {
     }
     if (this.scanHeld) fi.scan = true;
     if (this.jumpEdge) fi.jump = true;
+    if (this.superEdge) fi.supercruise = true;
     if (this.camEdge) fi.cam = true;
     if (this.dockEdge) fi.dock = true;
     return fi;
@@ -171,6 +176,7 @@ export class TouchControls {
 
   endFrame() {
     this.jumpEdge = false;
+    this.superEdge = false;
     this.camEdge = false;
     this.dockEdge = false;
   }
