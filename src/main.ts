@@ -6,7 +6,7 @@ import { TouchControls } from './core/touch';
 import { Game } from './core/state';
 import { PS1Pipeline } from './render/ps1';
 import { makeSkybox } from './world/skybox';
-import { Galaxy, SystemDef, jumpCost } from './world/galaxy';
+import { Galaxy, SystemDef, jumpCost, starLabel } from './world/galaxy';
 import { StarSystem, StationBody } from './world/system';
 import { Scanner, ScanTarget } from './world/scan';
 import { HyperspaceTunnel } from './render/hyperspace';
@@ -593,7 +593,7 @@ const loop = new GameLoop(
 
         hud.update({
           system: game.systemName,
-          starType: system ? 'ÉTOILE ' + system.def.star.type : undefined,
+          starType: system ? 'ÉTOILE ' + starLabel(system.def.star.type) : undefined,
           credits: game.player.credits,
           speed: ship.vel.length(),
           throttle: ship.throttle,

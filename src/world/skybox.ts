@@ -48,6 +48,31 @@ export function makeSun(snapRes: THREE.Vector2, v: StarVisual): THREE.Group {
   glow.scale.set(s, s, 1);
   g.add(glow);
 
+  if (v.beams) {
+    // pulsar: two lighthouse beams sweeping in the orbital plane
+    g.userData.beams = [0, Math.PI / 2].map((a) => {
+      const holder = new THREE.Group();
+      const beam = new THREE.Mesh(
+        new THREE.PlaneGeometry(12000, 160),
+        new THREE.MeshBasicMaterial({
+          color: 0xbfd8ff,
+          transparent: true,
+          opacity: 0.3,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: false,
+        }),
+      );
+      applyPS1(beam.material, snapRes);
+      beam.rotation.x = -Math.PI / 2;
+      holder.add(beam);
+      holder.rotation.y = a;
+      g.add(holder);
+      return holder;
+    });
+  }
+
   g.add(new THREE.PointLight(v.color, v.light, 0, 0));
   return g;
 }

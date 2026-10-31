@@ -1,8 +1,13 @@
 import type { Galaxy, SystemDef } from '../world/galaxy';
-import { jumpCost } from '../world/galaxy';
+import { jumpCost, starLabel } from '../world/galaxy';
 
 export function distTo(a: SystemDef, b: SystemDef): number {
   return Math.hypot(a.x - b.x, a.z - b.z);
+}
+
+function starColor(s: SystemDef, alpha: number): string {
+  const c = s.star.color;
+  return `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${alpha})`;
 }
 
 // Full-screen galaxy map: every system as a dot, jump-range ring around
@@ -49,7 +54,8 @@ export class GalaxyMapUI {
 
     const current = galaxy.systems.find((s) => s.id === currentId) ?? galaxy.systems[0];
     this.el.querySelector('#gm-sub')!.textContent =
-      'ACTUEL : ' + current.name + ' — CARBURANT ' + Math.round(fuel) + '% — PORTÉE ' + range;
+      'ACTUEL : ' + current.name + ' (' + starLabel(current.star.type) +
+      ') — CARBURANT ' + Math.round(fuel) + '% — PORTÉE ' + range;
 
     this.jumpBtn.addEventListener('click', () => this.selected && this.onJump(this.selected));
     this.jumpBtn.addEventListener('touchstart', (e) => {
@@ -157,12 +163,12 @@ export class GalaxyMapUI {
         c.font = '12px monospace';
         c.fillText(s.name, sx + 10, sy - 8);
       } else if (inRange) {
-        c.fillStyle = 'rgba(255,179,71,0.85)';
+        c.fillStyle = starColor(s, 0.95);
         c.beginPath();
         c.arc(sx, sy, 3, 0, Math.PI * 2);
         c.fill();
       } else {
-        c.fillStyle = 'rgba(120,130,150,0.5)';
+        c.fillStyle = starColor(s, 0.4);
         c.beginPath();
         c.arc(sx, sy, 2, 0, Math.PI * 2);
         c.fill();
@@ -179,7 +185,7 @@ export class GalaxyMapUI {
       );
       const cost = jumpCost(d);
       sel.textContent =
-        'DEST : ' + this.selected.name + ' (' + this.selected.star.type +
+        'DEST : ' + this.selected.name + ' (' + starLabel(this.selected.star.type) +
         ') — ' + d.toFixed(1) + ' KLY — CARBURANT ' + cost.toFixed(1) + '%';
       const ok = d <= this.range && this.fuel >= cost;
       jump.disabled = !ok;

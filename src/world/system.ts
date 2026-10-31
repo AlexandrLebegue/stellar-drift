@@ -28,13 +28,20 @@ export interface StationBody {
 // compressed. Innermost orbit = 3.2 × the star radius (the star looks huge
 // from there); each next orbit grows ~(1 + 0.55·i)^1.6 × the first, so the
 // outer orbits sit 10-50 × the star radius (the star looks tiny from there).
-const LAYOUT: Record<StarType, { inner: number; minInner: number; planets: [number, number] }> = {
-  B: { inner: 3.2, minInner: 0, planets: [3, 8] },
-  A: { inner: 3.2, minInner: 0, planets: [2, 8] },
-  F: { inner: 3.2, minInner: 0, planets: [2, 8] },
-  G: { inner: 3.2, minInner: 0, planets: [2, 8] },
-  K: { inner: 3.2, minInner: 0, planets: [2, 8] },
-  M: { inner: 3.2, minInner: 1400, planets: [2, 8] },
+// `skip`: orbits reserved (empty) before the first planet — red giants
+// have no inner planets. `minInner`: floor for tiny stars (WD, pulsar).
+const LAYOUT: Record<StarType, { inner: number; minInner: number; skip: number; planets: [number, number] }> = {
+  BD: { inner: 1.5, minInner: 350, skip: 0, planets: [2, 6] },
+  M: { inner: 3.2, minInner: 1400, skip: 0, planets: [2, 8] },
+  K: { inner: 3.2, minInner: 0, skip: 0, planets: [2, 8] },
+  G: { inner: 3.2, minInner: 0, skip: 0, planets: [2, 8] },
+  F: { inner: 3.2, minInner: 0, skip: 0, planets: [2, 8] },
+  A: { inner: 3.2, minInner: 0, skip: 0, planets: [2, 8] },
+  B: { inner: 3.2, minInner: 0, skip: 0, planets: [3, 8] },
+  O: { inner: 3.2, minInner: 0, skip: 0, planets: [3, 8] },
+  RG: { inner: 3.2, minInner: 0, skip: 2, planets: [1, 4] },
+  WD: { inner: 3.2, minInner: 800, skip: 0, planets: [2, 8] },
+  PS: { inner: 3.2, minInner: 800, skip: 0, planets: [2, 8] },
 };
 
 export const ORBIT_CAP = 1500000;
@@ -42,7 +49,7 @@ export const ORBIT_CAP = 1500000;
 export function orbitRadius(starR: number, type: StarType, i: number): number {
   const L = LAYOUT[type];
   const r0 = Math.max(L.inner * starR, L.minInner);
-  return Math.min(ORBIT_CAP, r0 * Math.pow(1 + 0.55 * i, 1.6));
+  return Math.min(ORBIT_CAP, r0 * Math.pow(1 + 0.55 * (i + L.skip), 1.6));
 }
 
 // One playable star system: star + orbiting planets + 1-2 stations.
@@ -133,6 +140,8 @@ export class StarSystem {
       s.orbit.rotation.y += s.orbitSpeed * dt;
       s.ring.rotation.z += dt * 0.3;
     }
+    const beams = this.star.userData.beams as THREE.Group[] | undefined;
+    if (beams) for (const b of beams) b.rotation.y += dt * 2;
   }
 
   dispose() {
